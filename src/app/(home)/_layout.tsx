@@ -16,6 +16,8 @@ export default function HomeLayout() {
         <ChatProvider>
             <Stack>
                 <Stack.Screen name='(tabs)' options={{ headerShown: false }} />
+                <Stack.Screen name='users' options={{ title: 'Users' }} />
+                <Stack.Screen name='channel' options={{ headerShown: false }} />
             </Stack>
         </ChatProvider>
 
