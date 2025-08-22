@@ -2,6 +2,8 @@ import React, { useState, useCallback, useMemo, memo, useRef, useEffect } from '
 import { View, StyleSheet, Alert, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { useChatContext, useChannelContext } from 'stream-chat-expo';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import AudioRecorder from './AudioRecorder';
 import { createAudioMessage, getFileSize, AudioFile } from '../utils/audioMessageHandler';
 import { offlineMessageHandler } from '../utils/offlineMessageHandler';
@@ -131,6 +133,166 @@ function CustomMessageInput() {
         setTextValue(text);
     }, []);
 
+    // Handle attachment selection
+    const handleAttachmentPress = useCallback(async () => {
+        Alert.alert(
+            'Select Attachment',
+            'Choose the type of file you want to attach',
+            [
+                {
+                    text: 'Cancel',
+                    style: 'cancel',
+                },
+                {
+                    text: 'Image',
+                    onPress: () => pickImage(),
+                },
+                {
+                    text: 'Document',
+                    onPress: () => pickDocument(),
+                },
+            ]
+        );
+    }, []);
+
+    // Pick image from gallery or camera
+    const pickImage = useCallback(async () => {
+        try {
+            // Request permissions first
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission needed', 'Please grant permission to access your photo library');
+                return;
+            }
+
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets && result.assets[0]) {
+                const asset = result.assets[0];
+                await sendAttachment({
+                    uri: asset.uri,
+                    type: 'image',
+                    name: `image_${Date.now()}.jpg`,
+                    size: asset.fileSize || 0,
+                });
+            }
+        } catch (error) {
+            console.error('Error picking image:', error);
+            Alert.alert('Error', 'Failed to pick image');
+        }
+    }, []);
+
+    // Pick document
+    const pickDocument = useCallback(async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: '*/*',
+                copyToCacheDirectory: true,
+            });
+
+            if (!result.canceled && result.assets && result.assets[0]) {
+                const asset = result.assets[0];
+                await sendAttachment({
+                    uri: asset.uri,
+                    type: 'file',
+                    name: asset.name,
+                    size: asset.size || 0,
+                });
+            }
+        } catch (error) {
+            console.error('Error picking document:', error);
+            Alert.alert('Error', 'Failed to pick document');
+        }
+    }, []);
+
+    // Send attachment
+    const sendAttachment = useCallback(async (file: {
+        uri: string;
+        type: 'image' | 'file';
+        name: string;
+        size: number;
+    }) => {
+        try {
+            console.log('=== Sending attachment ===');
+            console.log('File type:', file.type);
+            console.log('File URI:', file.uri);
+            console.log('File name:', file.name);
+            console.log('File size:', file.size);
+            console.log('Is online:', isOnline);
+
+            if (isOnline) {
+                // For images, use Stream Chat's image upload
+                if (file.type === 'image') {
+                    console.log('Attempting to send image...');
+                    try {
+                        // Use sendMessage with proper image attachment format
+                        const response = await channel.sendMessage({
+                            text: `📷 ${file.name}`,
+                            attachments: [
+                                {
+                                    type: 'image',
+                                    image_url: file.uri,
+                                    title: file.name,
+                                    file_size: file.size,
+                                }
+                            ],
+                        });
+                        console.log('Image sent successfully:', response);
+                    } catch (imageError) {
+                        console.error('Image send error:', imageError);
+                        Alert.alert('Error', 'Failed to send image');
+                    }
+                } else {
+                    console.log('Attempting to send file...');
+                    try {
+                        // Use sendMessage with proper file attachment format
+                        const response = await channel.sendMessage({
+                            text: `📎 ${file.name}`,
+                            attachments: [
+                                {
+                                    type: 'file',
+                                    asset_url: file.uri,
+                                    title: file.name,
+                                    file_size: file.size,
+                                }
+                            ],
+                        });
+                        console.log('File sent successfully:', response);
+                    } catch (fileError) {
+                        console.error('File send error:', fileError);
+                        Alert.alert('Error', 'Failed to send file');
+                    }
+                }
+            } else {
+                // Queue attachment for offline delivery
+                await offlineMessageHandler.queueMessage(client, channel.cid, {
+                    text: `📎 ${file.name} (will be sent when online)`,
+                    attachments: [
+                        {
+                            type: file.type,
+                            asset_url: file.uri,
+                            title: file.name,
+                            file_size: file.size,
+                        }
+                    ],
+                });
+                Alert.alert(
+                    'Attachment Queued', 
+                    'File will be sent when you\'re back online.',
+                    [{ text: 'OK' }]
+                );
+            }
+        } catch (error) {
+            console.error('Error sending attachment:', error);
+            Alert.alert('Error', 'Failed to send attachment');
+        }
+    }, [isOnline, channel, client]);
+
     // Memoize the action button (audio recorder or send button)
     const actionButton = useMemo(() => {
         const hasText = textValue && textValue.trim().length > 0;
@@ -174,6 +336,13 @@ function CustomMessageInput() {
     return (
         <View style={styles.container}>
             <View style={styles.inputContainer}>
+                <TouchableOpacity
+                    style={styles.attachmentButton}
+                    onPress={handleAttachmentPress}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons name="attach" size={20} color="#666" />
+                </TouchableOpacity>
                 <TextInput
                     ref={inputRef}
                     style={styles.textInput}
@@ -210,6 +379,16 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
+    },
+    attachmentButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#ddd',
     },
     textInput: {
         flex: 1,
