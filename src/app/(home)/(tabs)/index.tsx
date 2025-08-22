@@ -3,7 +3,7 @@ import { Link, Stack, router } from "expo-router";
 import { ChannelList } from "stream-chat-expo";
 import { useAuth } from "../../../providers/AuthProvider";
 import Octicons from '@expo/vector-icons/Octicons';
-import { Image, View, TouchableOpacity } from "react-native";
+import { Image, View, TouchableOpacity, StyleSheet } from "react-native";
 import { supabase } from "../../../lib/supabase";
 
 export default function MainTabScreen() {
@@ -20,53 +20,46 @@ export default function MainTabScreen() {
         : null;
 
     return (
-        <>
-            <Stack.Screen options={{
-                headerLeft: () => (
-                    <TouchableOpacity
-                        onPress={() => router.push('/(home)/(tabs)/profile')}
-                        style={{ marginHorizontal: 15 }}
-                    >
-                        {avatarUrl ? (
-                            <Image
-                                source={{ uri: avatarUrl }}
-                                style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 16,
-                                }}
-                            />
-                        ) : (
-                            <View
-                                style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 16,
-                                    backgroundColor: '#ddd',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                }}
-                            >
-                                <Octicons name="person" size={20} color="#666" />
-                            </View>
-                        )}
-                    </TouchableOpacity>
-                ),
-                headerRight: () =>
-                    <Link href="/(home)/users" asChild>
-                        <Octicons
-                            name="person-add"
-                            size={22} color="gray"
-                            style={{ marginHorizontal: 15 }}
-                        />
-                    </Link>
-
-            }} />
-
+        <View style={styles.container}>
             <ChannelList
                 filters={{ members: { $in: [user.id] } }}
                 onSelect={(channel) => router.push(`/channel/${channel.cid}`)}
             />
-        </>
+
+            {/* WhatsApp-style floating action button for new chat */}
+            <TouchableOpacity
+                style={styles.fab}
+                onPress={() => router.push('/(home)/users')}
+                activeOpacity={0.8}
+            >
+                <Octicons name="person-add" size={24} color="white" />
+            </TouchableOpacity>
+        </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        position: 'relative',
+    },
+    fab: {
+        position: 'absolute',
+        bottom: 20,
+        right: 20,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: '#25D366', // WhatsApp green color
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 8, // Android shadow
+        shadowColor: '#000', // iOS shadow
+        shadowOffset: {
+            width: 0,
+            height: 4,
+        },
+        shadowOpacity: 0.3,
+        shadowRadius: 4.65,
+    },
+});
