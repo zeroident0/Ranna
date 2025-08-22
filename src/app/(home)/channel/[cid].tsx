@@ -105,7 +105,9 @@ export default function ChannelScreen() {
         if (!channel) return null;
         
         return (
-            <Channel channel={channel}>
+            <Channel 
+            channel={channel}
+            >
                 <SafeAreaView style={{ flex: 1 }}>
                     <MemoizedOfflineStatusBar onSyncPress={handleSyncPress} />
                     <KeyboardAvoidingView
