@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useMemo, memo } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
-import { MessageInput, useChatContext, useChannelContext } from 'stream-chat-expo';
+import React, { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react';
+import { View, StyleSheet, Alert, TouchableOpacity, TextInput, Platform } from 'react-native';
+import { useChatContext, useChannelContext } from 'stream-chat-expo';
+import { Ionicons } from '@expo/vector-icons';
 import AudioRecorder from './AudioRecorder';
 import { createAudioMessage, getFileSize, AudioFile } from '../utils/audioMessageHandler';
 import { offlineMessageHandler } from '../utils/offlineMessageHandler';
@@ -11,9 +12,11 @@ const MemoizedAudioRecorder = memo(AudioRecorder);
 
 function CustomMessageInput() {
     const [isRecording, setIsRecording] = useState(false);
+    const [textValue, setTextValue] = useState('');
     const { isOnline } = useNetwork(); // Use shared network context
     const { client } = useChatContext();
     const { channel } = useChannelContext();
+    const inputRef = useRef<TextInput>(null);
 
     // Memoize the audio recording handler to prevent recreation
     const handleAudioRecorded = useCallback(async (uri: string, duration: number) => {
@@ -88,14 +91,74 @@ function CustomMessageInput() {
         setIsRecording(false);
     }, []);
 
-    // Memoize the input buttons render function
-    const renderInputButtons = useCallback(() => {
-        return (
-            <View style={styles.inputButtons}>
-                {/* AudioRecorder is now rendered outside of this function */}
-            </View>
-        );
+    // Handle sending text message
+    const handleSendMessage = useCallback(async () => {
+        if (!textValue.trim()) return;
+
+        const messageText = textValue.trim();
+        setTextValue(''); // Clear input
+
+        if (isOnline) {
+            // Send message immediately if online
+            try {
+                await channel.sendMessage({
+                    text: messageText,
+                });
+            } catch (error) {
+                console.error('Error sending message:', error);
+                Alert.alert('Error', 'Failed to send message');
+            }
+        } else {
+            // Queue message for offline delivery
+            try {
+                await offlineMessageHandler.queueMessage(client, channel.cid, {
+                    text: messageText,
+                });
+                Alert.alert(
+                    'Message Queued', 
+                    'Message will be sent when you\'re back online.',
+                    [{ text: 'OK' }]
+                );
+            } catch (error) {
+                console.error('Error queuing message:', error);
+                Alert.alert('Error', 'Failed to queue message for offline delivery');
+            }
+        }
+    }, [textValue, isOnline, channel, client]);
+
+    // Handle text input changes
+    const handleTextChange = useCallback((text: string) => {
+        setTextValue(text);
     }, []);
+
+    // Memoize the action button (audio recorder or send button)
+    const actionButton = useMemo(() => {
+        const hasText = textValue && textValue.trim().length > 0;
+
+        if (!hasText) {
+            // Show audio recorder button when no text
+            return (
+                <MemoizedAudioRecorder
+                    onAudioRecorded={handleAudioRecorded}
+                    isRecording={isRecording}
+                    onRecordingStart={handleRecordingStart}
+                    onRecordingStop={handleRecordingStop}
+                    compact={true}
+                />
+            );
+        } else {
+            // Show send button when there's text
+            return (
+                <TouchableOpacity
+                    style={styles.sendButton}
+                    onPress={handleSendMessage}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons name="send" size={20} color="#007AFF" />
+                </TouchableOpacity>
+            );
+        }
+    }, [textValue, isRecording, handleAudioRecorded, handleRecordingStart, handleRecordingStop, handleSendMessage]);
 
     // Memoize the offline indicator
     const offlineIndicator = useMemo(() => {
@@ -108,23 +171,25 @@ function CustomMessageInput() {
         );
     }, [isOnline]);
 
-    // Memoize the audio recorder container
-    const audioRecorderContainer = useMemo(() => (
-        <View style={styles.audioRecorderContainer}>
-            <MemoizedAudioRecorder
-                onAudioRecorded={handleAudioRecorded}
-                isRecording={isRecording}
-                onRecordingStart={handleRecordingStart}
-                onRecordingStop={handleRecordingStop}
-            />
-            {offlineIndicator}
-        </View>
-    ), [handleAudioRecorded, isRecording, handleRecordingStart, handleRecordingStop, offlineIndicator]);
-
     return (
         <View style={styles.container}>
-            <MessageInput InputButtons={renderInputButtons} />
-            {audioRecorderContainer}
+            <View style={styles.inputContainer}>
+                <TextInput
+                    ref={inputRef}
+                    style={styles.textInput}
+                    value={textValue}
+                    onChangeText={handleTextChange}
+                    placeholder="Type a message..."
+                    placeholderTextColor="#999"
+                    multiline
+                    maxLength={1000}
+                    textAlignVertical="center"
+                />
+                <View style={styles.actionButtonContainer}>
+                    {actionButton}
+                </View>
+            </View>
+            {offlineIndicator}
         </View>
     );
 }
@@ -134,25 +199,51 @@ export default memo(CustomMessageInput);
 
 const styles = StyleSheet.create({
     container: {
-
-    },
-  
-    inputButtons: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 8,
-    },
-    audioRecorderContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 8,
-        paddingVertical: 1,
+        position: 'relative',
+        backgroundColor: '#fff',
         borderTopWidth: 1,
         borderTopColor: '#e0e0e0',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    inputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    textInput: {
+        flex: 1,
+        fontSize: 16,
+        color: '#000',
+        maxHeight: 100,
+        minHeight: 40,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
         backgroundColor: '#f8f9fa',
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+        textAlignVertical: 'center',
+    },
+    actionButtonContainer: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: 40,
+    },
+    sendButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#007AFF',
     },
     offlineIndicator: {
-        marginLeft: 8,
+        position: 'absolute',
+        top: -8,
+        right: 8,
         alignItems: 'center',
         justifyContent: 'center',
     },

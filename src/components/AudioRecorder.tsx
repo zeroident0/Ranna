@@ -16,6 +16,7 @@ interface AudioRecorderProps {
     isRecording: boolean;
     onRecordingStart: () => void;
     onRecordingStop: () => void;
+    compact?: boolean;
 }
 
 export default function AudioRecorder({
@@ -23,10 +24,12 @@ export default function AudioRecorder({
     isRecording,
     onRecordingStart,
     onRecordingStop,
+    compact = false,
 }: AudioRecorderProps) {
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [recordingDuration, setRecordingDuration] = useState(0);
     const [isPreparing, setIsPreparing] = useState(false);
+    const [isPressed, setIsPressed] = useState(false);
     const durationInterval = useRef<NodeJS.Timeout | null>(null);
 
     // Cleanup function to properly dispose of recording
@@ -54,6 +57,7 @@ export default function AudioRecorder({
         setRecordingDuration(0);
         setIsPreparing(false);
         setRecording(null);
+        setIsPressed(false);
         console.log('cleanupRecording completed');
     };
 
@@ -79,9 +83,10 @@ export default function AudioRecorder({
             isRecording,
             isPreparing,
             hasRecording: !!recording,
-            duration: recordingDuration
+            duration: recordingDuration,
+            isPressed
         });
-    }, [isRecording, isPreparing, recording, recordingDuration]);
+    }, [isRecording, isPreparing, recording, recordingDuration, isPressed]);
 
     const requestPermissions = async () => {
         if (Platform.OS === 'android') {
@@ -251,6 +256,20 @@ export default function AudioRecorder({
         }
     };
 
+    const handlePressIn = async () => {
+        console.log('Button pressed - starting recording');
+        setIsPressed(true);
+        await startRecording();
+    };
+
+    const handlePressOut = async () => {
+        console.log('Button released - stopping recording');
+        setIsPressed(false);
+        if (recording) {
+            await stopRecording();
+        }
+    };
+
     const formatDuration = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
@@ -261,21 +280,22 @@ export default function AudioRecorder({
         <View style={styles.container}>
             <TouchableOpacity
                 style={[
-                    styles.recordButton, 
-                    (isRecording || isPreparing) && styles.recordingButton
+                    compact ? styles.recordButtonCompact : styles.recordButton, 
+                    (isRecording || isPreparing || isPressed) && styles.recordingButton
                 ]}
-                onPress={isRecording ? stopRecording : startRecording}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
                 activeOpacity={0.7}
                 disabled={isPreparing}
             >
                 <Ionicons
                     name={isRecording ? 'stop' : 'mic'}
-                    size={24}
-                    color={(isRecording || isPreparing) ? '#fff' : '#007AFF'}
+                    size={compact ? 20 : 24}
+                    color={(isRecording || isPreparing || isPressed) ? '#fff' : '#007AFF'}
                 />
             </TouchableOpacity>
 
-            {(isRecording || isPreparing) && (
+            {(isRecording || isPreparing) && !compact && (
                 <View style={styles.durationContainer}>
                     <Text style={styles.durationText}>
                         {isPreparing ? 'Preparing...' : formatDuration(recordingDuration)}
@@ -297,6 +317,16 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#007AFF',
+    },
+    recordButtonCompact: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         backgroundColor: '#f0f0f0',
         justifyContent: 'center',
         alignItems: 'center',
