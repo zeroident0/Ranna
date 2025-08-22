@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback, memo } from "react";
 import { ActivityIndicator, Text, KeyboardAvoidingView, Platform, View } from "react-native";
 import { Channel, MessageList, useChatContext } from "stream-chat-expo";
 import type { Channel as ChannelType } from "stream-chat";
@@ -8,57 +8,122 @@ import CustomMessageInput from "../../../components/CustomMessageInput";
 import OfflineStatusBar from "../../../components/OfflineStatusBar";
 import { globalRecordingManager } from "../../../utils/audioMessageHandler";
 import { offlineMessageHandler } from "../../../utils/offlineMessageHandler";
+import { networkOptimizer, memoryManager } from "../../../utils/performanceOptimizer";
+import { usePerformanceMonitor, useOperationTimer } from "../../../utils/usePerformanceMonitor";
+
+// Memoized components to prevent unnecessary re-renders
+const MemoizedMessageList = memo(MessageList);
+const MemoizedCustomMessageInput = memo(CustomMessageInput);
+const MemoizedOfflineStatusBar = memo(OfflineStatusBar);
 
 export default function ChannelScreen() {
     const [channel, setChannel] = useState<ChannelType | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
     const { cid } = useLocalSearchParams<{ cid: string }>();
 
     const { client } = useChatContext();
 
-    useEffect(() => {
-        const fetchChannel = async () => {
-            if (!cid) return;
-            const res = await client.queryChannels({ cid });
+    // Performance monitoring
+    usePerformanceMonitor({
+        componentName: 'ChannelScreen',
+        threshold: 16, // 60fps target
+        onMetrics: (metrics) => {
+            if (__DEV__ && metrics.renderTime > 16) {
+                console.warn('ChannelScreen render time exceeded 16ms:', metrics.renderTime);
+            }
+        }
+    });
+
+    const { startTimer, endTimer } = useOperationTimer('Channel Fetch');
+
+    // Memoize the channel fetching function to prevent recreation on every render
+    const fetchChannel = useCallback(async () => {
+        if (!cid || !client) return;
+        
+        try {
+            setIsLoading(true);
+            startTimer();
+            
+            // Use retry logic for better reliability
+            const res = await networkOptimizer.retryWithBackoff(
+                () => client.queryChannels({ cid }),
+                3, // max retries
+                1000 // base delay
+            );
+            
+            endTimer();
+            
             if (res.length > 0) {
                 setChannel(res[0]);
             }
-        };
-        fetchChannel();
-    }, [cid, client]);
+        } catch (error) {
+            endTimer();
+            console.error('Error fetching channel:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [cid, client, startTimer, endTimer]);
 
-    // Cleanup recording when component unmounts
+    // Fetch channel only when cid or client changes
     useEffect(() => {
-        return () => {
-            // Clean up any active recording when leaving the channel
-            globalRecordingManager.cleanupCurrentRecording();
-        };
-    }, []);
+        fetchChannel();
+    }, [fetchChannel]);
 
-    const handleSyncPress = async () => {
+    // Memoize the sync handler to prevent recreation
+    const handleSyncPress = useCallback(async () => {
         try {
             await offlineMessageHandler.syncOfflineMessages();
         } catch (error) {
             console.error('Error syncing offline messages:', error);
         }
-    };
+    }, []);
 
-    if (!channel) {
-        return <ActivityIndicator size="large" color="#0000ff" />;
+    // Cleanup recording when component unmounts
+    useEffect(() => {
+        // Add cleanup task to memory manager
+        const cleanupTask = () => {
+            globalRecordingManager.cleanupCurrentRecording();
+        };
+        
+        memoryManager.addCleanupTask(cleanupTask);
+        
+        return () => {
+            // Clean up any active recording when leaving the channel
+            cleanupTask();
+        };
+    }, []);
+
+    // Memoize the loading component
+    const loadingComponent = useMemo(() => (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#0000ff" />
+        </View>
+    ), []);
+
+    // Memoize the main content to prevent re-renders
+    const channelContent = useMemo(() => {
+        if (!channel) return null;
+        
+        return (
+            <Channel channel={channel}>
+                <SafeAreaView style={{ flex: 1 }}>
+                    <MemoizedOfflineStatusBar onSyncPress={handleSyncPress} />
+                    <KeyboardAvoidingView
+                        style={{ flex: 1 }}
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+                    >
+                        <MemoizedMessageList />
+                        <MemoizedCustomMessageInput />
+                    </KeyboardAvoidingView>
+                </SafeAreaView>
+            </Channel>
+        );
+    }, [channel, handleSyncPress]);
+
+    if (isLoading) {
+        return loadingComponent;
     }
 
-    return (
-        <Channel channel={channel}>
-            <SafeAreaView style={{ flex: 1 }}>
-                <OfflineStatusBar onSyncPress={handleSyncPress} />
-                <KeyboardAvoidingView
-                    style={{ flex: 1 }}
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-                >
-                    <MessageList />
-                    <CustomMessageInput />
-                </KeyboardAvoidingView>
-            </SafeAreaView>
-        </Channel>
-    );
+    return channelContent;
 }

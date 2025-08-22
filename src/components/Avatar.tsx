@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { StyleSheet, View, Alert, Image, TouchableOpacity, Text } from 'react-native'
+import { StyleSheet, View, Alert, Image, TouchableOpacity } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
+import Ionicons from '@expo/vector-icons/Ionicons'
 
 interface Props {
     size: number
@@ -51,9 +52,6 @@ export default function Avatar({ url, size = 150, onUpload }: Props) {
             justifyContent: 'center',
             borderWidth: 2,
             borderColor: '#fff',
-        },
-        uploadIcon: {
-            color: '#fff',
         },
     })
 
@@ -159,9 +157,11 @@ export default function Avatar({ url, size = 150, onUpload }: Props) {
                     disabled={uploading}
                     activeOpacity={0.7}
                 >
-                    <Text style={[styles.uploadIcon, { fontSize: size * 0.15 }]}>
-                        {uploading ? '⏳' : '📷'}
-                    </Text>
+                    <Ionicons
+                        name={uploading ? "hourglass-outline" : "camera"}
+                        size={size * 0.15}
+                        color="#fff"
+                    />
                 </TouchableOpacity>
             </View>
         </View>

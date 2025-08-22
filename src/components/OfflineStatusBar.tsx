@@ -1,61 +1,93 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
 import { offlineMessageHandler } from '../utils/offlineMessageHandler';
+import { useNetwork } from '../providers/NetworkProvider';
 
 interface OfflineStatusBarProps {
     onSyncPress?: () => void;
 }
 
-export default function OfflineStatusBar({ onSyncPress }: OfflineStatusBarProps) {
-    const [isOnline, setIsOnline] = useState(true);
+function OfflineStatusBar({ onSyncPress }: OfflineStatusBarProps) {
+    const { isOnline } = useNetwork(); // Use shared network context
     const [pendingMessageCount, setPendingMessageCount] = useState(0);
     const [isVisible, setIsVisible] = useState(false);
 
+    // Update visibility based on network status
     useEffect(() => {
-        const unsubscribe = NetInfo.addEventListener(state => {
-            const online = state.isConnected && state.isInternetReachable;
-            setIsOnline(online);
-            setIsVisible(!online);
-        });
+        setIsVisible(!isOnline);
+    }, [isOnline]);
 
-        // Check initial network status
-        NetInfo.fetch().then(state => {
-            const online = state.isConnected && state.isInternetReachable;
-            setIsOnline(online);
-            setIsVisible(!online);
-        });
-
-        return () => unsubscribe();
+    // Memoize the update pending count function
+    const updatePendingCount = useCallback(async () => {
+        try {
+            const count = await offlineMessageHandler.getOfflineMessageCount();
+            setPendingMessageCount(count);
+        } catch (error) {
+            console.error('Error updating pending count:', error);
+        }
     }, []);
 
     useEffect(() => {
-        const updatePendingCount = async () => {
-            const count = await offlineMessageHandler.getOfflineMessageCount();
-            setPendingMessageCount(count);
-        };
-
         // Update count initially
         updatePendingCount();
 
-        // Update count every 5 seconds when offline
-        const interval = setInterval(() => {
-            if (!isOnline) {
-                updatePendingCount();
+        // Only poll when offline and reduce frequency to 10 seconds
+        let interval: NodeJS.Timeout | null = null;
+        if (!isOnline) {
+            interval = setInterval(updatePendingCount, 10000); // Changed from 5000 to 10000
+        }
+
+        return () => {
+            if (interval) {
+                clearInterval(interval);
             }
-        }, 5000);
+        };
+    }, [isOnline, updatePendingCount]);
 
-        return () => clearInterval(interval);
-    }, [isOnline]);
-
-    const handleSyncPress = async () => {
+    // Memoize the sync handler
+    const handleSyncPress = useCallback(async () => {
         if (onSyncPress) {
             onSyncPress();
         } else {
             // Default sync behavior
             await offlineMessageHandler.syncOfflineMessages();
         }
-    };
+    }, [onSyncPress]);
+
+    // Memoize the status indicator
+    const statusIndicator = useMemo(() => (
+        <View style={styles.statusIndicator}>
+            <View style={[styles.dot, { backgroundColor: '#ff6b6b' }]} />
+            <Text style={styles.statusText}>You're offline</Text>
+        </View>
+    ), []);
+
+    // Memoize the message info section
+    const messageInfo = useMemo(() => {
+        if (pendingMessageCount <= 0) return null;
+        
+        return (
+            <View style={styles.messageInfo}>
+                <Text style={styles.messageText}>
+                    {pendingMessageCount} message{pendingMessageCount !== 1 ? 's' : ''} pending
+                </Text>
+                <TouchableOpacity 
+                    style={styles.syncButton}
+                    onPress={handleSyncPress}
+                >
+                    <Text style={styles.syncButtonText}>Sync</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }, [pendingMessageCount, handleSyncPress]);
+
+    // Memoize the main content
+    const content = useMemo(() => (
+        <View style={styles.content}>
+            {statusIndicator}
+            {messageInfo}
+        </View>
+    ), [statusIndicator, messageInfo]);
 
     if (!isVisible) {
         return null;
@@ -63,29 +95,13 @@ export default function OfflineStatusBar({ onSyncPress }: OfflineStatusBarProps)
 
     return (
         <View style={styles.container}>
-            <View style={styles.content}>
-                <View style={styles.statusIndicator}>
-                    <View style={[styles.dot, { backgroundColor: '#ff6b6b' }]} />
-                    <Text style={styles.statusText}>You're offline</Text>
-                </View>
-                
-                {pendingMessageCount > 0 && (
-                    <View style={styles.messageInfo}>
-                        <Text style={styles.messageText}>
-                            {pendingMessageCount} message{pendingMessageCount !== 1 ? 's' : ''} pending
-                        </Text>
-                        <TouchableOpacity 
-                            style={styles.syncButton}
-                            onPress={handleSyncPress}
-                        >
-                            <Text style={styles.syncButtonText}>Sync</Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-            </View>
+            {content}
         </View>
     );
 }
+
+// Export as memoized component to prevent unnecessary re-renders from parent
+export default memo(OfflineStatusBar);
 
 const styles = StyleSheet.create({
     container: {

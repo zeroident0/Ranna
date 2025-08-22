@@ -1,27 +1,22 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo, memo } from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { MessageInput, useChatContext, useChannelContext } from 'stream-chat-expo';
 import AudioRecorder from './AudioRecorder';
 import { createAudioMessage, getFileSize, AudioFile } from '../utils/audioMessageHandler';
 import { offlineMessageHandler } from '../utils/offlineMessageHandler';
-import NetInfo from '@react-native-community/netinfo';
+import { useNetwork } from '../providers/NetworkProvider';
 
-export default function CustomMessageInput() {
+// Memoized AudioRecorder to prevent unnecessary re-renders
+const MemoizedAudioRecorder = memo(AudioRecorder);
+
+function CustomMessageInput() {
     const [isRecording, setIsRecording] = useState(false);
-    const [isOnline, setIsOnline] = useState(true);
+    const { isOnline } = useNetwork(); // Use shared network context
     const { client } = useChatContext();
     const { channel } = useChannelContext();
 
-    // Monitor network status
-    React.useEffect(() => {
-        const unsubscribe = NetInfo.addEventListener(state => {
-            setIsOnline(state.isConnected && state.isInternetReachable);
-        });
-
-        return () => unsubscribe();
-    }, []);
-
-    const handleAudioRecorded = async (uri: string, duration: number) => {
+    // Memoize the audio recording handler to prevent recreation
+    const handleAudioRecorded = useCallback(async (uri: string, duration: number) => {
         console.log('=== handleAudioRecorded called ===');
         console.log('URI:', uri);
         console.log('Duration:', duration);
@@ -80,8 +75,9 @@ export default function CustomMessageInput() {
                 Alert.alert('Error', 'Failed to queue audio message for offline delivery.');
             }
         }
-    };
+    }, [isOnline, client, channel]);
 
+    // Memoize recording handlers
     const handleRecordingStart = useCallback(() => {
         console.log('Recording started');
         setIsRecording(true);
@@ -92,6 +88,7 @@ export default function CustomMessageInput() {
         setIsRecording(false);
     }, []);
 
+    // Memoize the input buttons render function
     const renderInputButtons = useCallback(() => {
         return (
             <View style={styles.inputButtons}>
@@ -100,25 +97,40 @@ export default function CustomMessageInput() {
         );
     }, []);
 
+    // Memoize the offline indicator
+    const offlineIndicator = useMemo(() => {
+        if (isOnline) return null;
+        
+        return (
+            <View style={styles.offlineIndicator}>
+                <View style={styles.offlineDot} />
+            </View>
+        );
+    }, [isOnline]);
+
+    // Memoize the audio recorder container
+    const audioRecorderContainer = useMemo(() => (
+        <View style={styles.audioRecorderContainer}>
+            <MemoizedAudioRecorder
+                onAudioRecorded={handleAudioRecorded}
+                isRecording={isRecording}
+                onRecordingStart={handleRecordingStart}
+                onRecordingStop={handleRecordingStop}
+            />
+            {offlineIndicator}
+        </View>
+    ), [handleAudioRecorded, isRecording, handleRecordingStart, handleRecordingStop, offlineIndicator]);
+
     return (
         <View style={styles.container}>
             <MessageInput InputButtons={renderInputButtons} />
-            <View style={styles.audioRecorderContainer}>
-                <AudioRecorder
-                    onAudioRecorded={handleAudioRecorded}
-                    isRecording={isRecording}
-                    onRecordingStart={handleRecordingStart}
-                    onRecordingStop={handleRecordingStop}
-                />
-                {!isOnline && (
-                    <View style={styles.offlineIndicator}>
-                        <View style={styles.offlineDot} />
-                    </View>
-                )}
-            </View>
+            {audioRecorderContainer}
         </View>
     );
 }
+
+// Export as memoized component to prevent unnecessary re-renders from parent
+export default memo(CustomMessageInput);
 
 const styles = StyleSheet.create({
     container: {
