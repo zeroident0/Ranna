@@ -1,7 +1,6 @@
-import { supabase } from "../lib/supabase";
+import { supabase } from '../lib/supabase';
 
 export const tokenProvider = async () => {
-    const {data} = await supabase.functions.invoke('stream-token');
-console.log(data);
-    return data.token;
-}
+  const { data } = await supabase.functions.invoke('stream-token');
+  return data.token;
+};
