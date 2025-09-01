@@ -8,6 +8,7 @@ import { supabase } from "../lib/supabase";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
 import { offlineMessageHandler } from '../utils/offlineMessageHandler';
+import { tokenProvider } from "../utils/tokenProvider";
 
 // Configure StreamChat client with offline support
 const client = StreamChat.getInstance(process.env.EXPO_PUBLIC_STREAM_API_KEY);
@@ -50,6 +51,10 @@ export default function ChatProvider({ children }: PropsWithChildren) {
         if (!profile) return;
 
         const connect = async () => {
+            const token = await tokenProvider();
+            console.log('Token:', token);
+
+
             try {
                 // Check if already connected to the same user
                 if (client.userID === profile.id && isReady) {
@@ -77,7 +82,7 @@ export default function ChatProvider({ children }: PropsWithChildren) {
                                     .getPublicUrl(profile.avatar_url).data.publicUrl
                                 : undefined,
                         },
-                        client.devToken(profile.id)
+                        tokenProvider
                     );
                     currentUserId.current = profile.id;
                     setIsReady(true);

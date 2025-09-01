@@ -290,7 +290,7 @@ export default function AudioRecorder({
             >
                 <Ionicons
                     name={isRecording ? 'stop' : 'mic'}
-                    size={compact ? 20 : 24}
+                    size={compact ? 24 : 24}
                     color={(isRecording || isPreparing || isPressed) ? '#fff' : '#007AFF'}
                 />
             </TouchableOpacity>
@@ -324,9 +324,9 @@ const styles = StyleSheet.create({
         borderColor: '#007AFF',
     },
     recordButtonCompact: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: '#f0f0f0',
         justifyContent: 'center',
         alignItems: 'center',

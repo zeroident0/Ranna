@@ -316,7 +316,7 @@ function CustomMessageInput() {
                     onPress={handleSendMessage}
                     activeOpacity={0.7}
                 >
-                    <Ionicons name="send" size={20} color="#007AFF" />
+                    <Ionicons name="send" size={24} color="#007AFF" />
                 </TouchableOpacity>
             );
         }
@@ -407,12 +407,12 @@ const styles = StyleSheet.create({
     actionButtonContainer: {
         justifyContent: 'center',
         alignItems: 'center',
-        width: 40,
+        width: 52,
     },
     sendButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         backgroundColor: '#f0f0f0',
         justifyContent: 'center',
         alignItems: 'center',

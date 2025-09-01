@@ -8,6 +8,7 @@ import Avatar from '../../../components/Avatar'
 import { useChatContext } from 'stream-chat-expo'
 import { Stack, router } from 'expo-router'
 import Ionicons from '@expo/vector-icons/Ionicons'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
 export default function ProfileScreen() {
     const { session } = useAuth();
@@ -190,7 +191,7 @@ export default function ProfileScreen() {
     }
 
     return (
-        <>
+        <SafeAreaView style={{ flex: 1 }}>
             <Stack.Screen options={{
                 headerLeft: () => (
                     <Ionicons
@@ -204,7 +205,12 @@ export default function ProfileScreen() {
                 title: 'Profile'
             }} />
 
-            <ScrollView style={styles.container}>
+            <ScrollView 
+                style={styles.container}
+                contentContainerStyle={styles.contentContainer}
+                showsVerticalScrollIndicator={false}
+                bounces={true}
+            >
 
                 {/* Profile Pic */}
                 <View style={{ alignItems: 'center' }}>
@@ -240,14 +246,17 @@ export default function ProfileScreen() {
                     <Button title="Sign Out" onPress={handleSignOut} />
                 </View>
             </ScrollView>
-        </>
+        </SafeAreaView>
     )
 }
 
 const styles = StyleSheet.create({
     container: {
-        marginTop: 40,
+        flex: 1,
+    },
+    contentContainer: {
         padding: 12,
+        paddingBottom: 40,
     },
     verticallySpaced: {
         paddingTop: 4,
