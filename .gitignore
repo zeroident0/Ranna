@@ -1,4 +1,8 @@
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+ios
+android
+google-services.json
+GoogleService-Info.plist
 
 # dependencies
 node_modules/
@@ -7,10 +11,8 @@ node_modules/
 .expo/
 dist/
 web-build/
-expo-env.d.ts
 
 # Native
-.kotlin/
 *.orig.*
 *.jks
 *.p8
@@ -36,7 +38,3 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
-
-*.env
-google-services.json
-android/app/google-services.json
