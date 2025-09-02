@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "49513143666",
+    "project_id": "ranna-cfa1d",
+    "storage_bucket": "ranna-cfa1d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:49513143666:android:20243a7f02e173f01351eb",
+        "android_client_info": {
+          "package_name": "com.SaifDev.Ranna"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBg8uFfwW7Zn_weYiAde20KDBGBqahKhkk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

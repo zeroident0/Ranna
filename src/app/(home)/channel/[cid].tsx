@@ -1,68 +1,71 @@
-import { useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, View } from "react-native";
-import { Channel, MessageList, MessageInput, useChatContext } from "stream-chat-expo";
-import type { Channel as ChannelType } from "stream-chat";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Channel as ChannelType } from 'stream-chat';
+import Ionicons from '@expo/vector-icons/Ionicons';
+
+import {
+  Channel,
+  MessageInput,
+  MessageList,
+  useChatContext,
+} from 'stream-chat-expo';
+import { useStreamVideoClient } from '@stream-io/video-react-native-sdk';
+import * as Crypto from 'expo-crypto';
 
 export default function ChannelScreen() {
   const [channel, setChannel] = useState<ChannelType | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const { cid } = useLocalSearchParams<{ cid: string }>();
 
   const { client } = useChatContext();
+  const videoClient = useStreamVideoClient();
 
   useEffect(() => {
     const fetchChannel = async () => {
-      if (!cid || !client) return;
-      try {
-        setIsLoading(true);
-        const res = await client.queryChannels({ cid });
-        if (res.length > 0) {
-          setChannel(res[0]);
-        }
-      } catch (error) {
-        console.error("Error fetching channel:", error);
-      } finally {
-        setIsLoading(false);
-      }
+      const channels = await client.queryChannels({ cid });
+      setChannel(channels[0]);
     };
 
     fetchChannel();
-  }, [cid, client]);
+  }, [cid]);
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#0000ff" />
-      </View>
-    );
-  }
+  const joinCall = async () => {
+    const members = Object.values(channel.state.members).map((member) => ({
+      user_id: member.user_id,
+    }));
+
+    // create a call using the channel members
+    const call = videoClient.call('default', Crypto.randomUUID());
+    await call.getOrCreate({
+      ring: true,
+      data: {
+        members,
+      },
+    });
+
+    // navigate to the call screen
+    // router.push(`/call`);
+  };
 
   if (!channel) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="red" />
-      </View>
-    );
+    return <ActivityIndicator />;
   }
 
   return (
-      <Channel 
-      channel={channel}
-      audioRecordingEnabled={true}>
-        <SafeAreaView style={{ flex: 1 }}>
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 15}
-          >
-            <MessageList />
-            <MessageInput 
-             
-             />
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Channel>
+    <Channel channel={channel} audioRecordingEnabled>
+      <Stack.Screen
+        options={{
+          title: 'Channel',
+          headerRight: () => (
+            <Ionicons name="call" size={20} color="gray" onPress={joinCall} />
+          ),
+        }}
+      />
+      <MessageList />
+      <SafeAreaView edges={['bottom']}>
+        <MessageInput />
+      </SafeAreaView>
+    </Channel>
   );
 }
