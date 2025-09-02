@@ -10,6 +10,9 @@
       "env": {
         "NODE_ENV": "development",
         "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+      },
+      "android": {
+        "gradleCommand": ":app:assembleDebug"
       }
     },
     "preview": {
@@ -17,6 +20,9 @@
       "env": {
         "NODE_ENV": "staging",
         "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+      },
+      "android": {
+        "gradleCommand": ":app:assembleRelease"
       }
     },
     "production": {
@@ -24,6 +30,9 @@
       "env": {
         "NODE_ENV": "production",
         "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+      },
+      "android": {
+        "gradleCommand": ":app:assembleRelease"
       }
     }
   },
