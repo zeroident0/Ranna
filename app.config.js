@@ -12,18 +12,12 @@
       "backgroundColor": "#ffffff"
     },
     "assetBundlePatterns": ["**/*"],
-    "ios": {
-      "supportsTablet": true,
-      "bitcode": false,
-      "bundleIdentifier": "com.SaifDev.Ranna",
-      "googleServicesFile": "./GoogleService-Info.plist"
-    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "googleServicesFile": "./google-services.json",
+      "googleServicesFile": process.env.GOOGLE_SERVICES_JSON,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.FOREGROUND_SERVICE",
@@ -56,7 +50,7 @@
         "expo-build-properties",
         {
           "android": {
-            "googleServicesFile": "./google-services.json",
+            "googleServicesFile": process.env.GOOGLE_SERVICES_JSON,
             "minSdkVersion": 24,
             "compileSdkVersion": 34,
             "targetSdkVersion": 34,
