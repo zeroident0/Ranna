@@ -9,7 +9,7 @@
       "distribution": "internal",
       "env": {
         "NODE_ENV": "development",
-        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+          "GOOGLE_SERVICES_JSON": "@file:GOOGLE_SERVICES_JSON"
       },
       "android": {
         "gradleCommand": ":app:assembleDebug"
@@ -19,7 +19,7 @@
       "distribution": "internal",
       "env": {
         "NODE_ENV": "staging",
-        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+          "GOOGLE_SERVICES_JSON": "@file:GOOGLE_SERVICES_JSON"
       },
       "android": {
         "gradleCommand": ":app:assembleRelease"
@@ -29,7 +29,7 @@
       "autoIncrement": true,
       "env": {
         "NODE_ENV": "production",
-        "GOOGLE_SERVICES_JSON": "@GOOGLE_SERVICES_JSON"
+          "GOOGLE_SERVICES_JSON": "@file:GOOGLE_SERVICES_JSON"
       },
       "android": {
         "gradleCommand": ":app:assembleRelease"
