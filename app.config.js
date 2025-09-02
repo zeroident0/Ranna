@@ -53,8 +53,8 @@ export default ({ config }) => ({
         android: {
           googleServicesFile: process.env.GOOGLE_SERVICES_JSON,
           minSdkVersion: 24,
-          compileSdkVersion: 34,
-          targetSdkVersion: 34,
+          compileSdkVersion: 35,
+          targetSdkVersion: 35,
           extraMavenRepos: [
             "../../node_modules/@notifee/react-native/android/libs"
           ]
