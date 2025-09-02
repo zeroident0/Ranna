@@ -11,9 +11,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bitcode": false,
@@ -47,7 +45,7 @@
         "android.permission.READ_PHONE_STATE",
         "android.permission.CALL_PHONE"
       ],
-      "package": "com.vadinsavin.Telegram"
+      "package": "com.SaifDev.Ranna"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -58,6 +56,7 @@
         "expo-build-properties",
         {
           "android": {
+            "googleServicesFile": "./google-services.json",
             "minSdkVersion": 24,
             "compileSdkVersion": 34,
             "targetSdkVersion": 34,
