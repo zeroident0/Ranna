@@ -11,11 +11,13 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bitcode": false,
-      "bundleIdentifier": "com.vadinsavin.Telegram",
+      "bundleIdentifier": "com.SaifDev.Ranna",
       "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
@@ -37,7 +39,13 @@
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.RECORD_AUDIO",
         "android.permission.SYSTEM_ALERT_WINDOW",
-        "android.permission.WAKE_LOCK"
+        "android.permission.WAKE_LOCK",
+        "android.permission.FOREGROUND_SERVICE_CAMERA",
+        "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
+        "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+        "android.permission.BIND_TELECOM_CONNECTION_SERVICE",
+        "android.permission.READ_PHONE_STATE",
+        "android.permission.CALL_PHONE"
       ],
       "package": "com.vadinsavin.Telegram"
     },
@@ -81,6 +89,12 @@
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
       "@config-plugins/react-native-callkeep"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8dae4b3d-8170-4ee2-baed-03f3d17df1bd"
+      }
+    }
   }
 }
