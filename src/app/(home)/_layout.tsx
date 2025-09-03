@@ -3,7 +3,7 @@ import ChatProvider from '../../providers/ChatProvider';
 import { useAuth } from '../../providers/AuthProvider';
 import VideoProvider from '../../providers/VideoProvider';
 import CallProvider from '../../providers/CallProvider';
-import NotificationsProvider from '../../providers/NotificationsProvider';
+import NotificationsProvider from '../../providers/NotifcationsProvider';
 
 export default function HomeLayout() {
   const { user } = useAuth();

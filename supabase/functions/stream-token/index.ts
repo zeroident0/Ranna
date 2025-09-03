@@ -3,45 +3,43 @@
 // This enables autocomplete, go to definition, etc.
 
 // Setup type definitions for built-in Supabase Runtime APIs
-import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import {StreamChat} from 'stream-chat';
+/// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
+import { StreamChat } from "npm:stream-chat";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-
-console.log("Hello from Functions!")
+console.log("Hello from Functions!");
 
 Deno.serve(async (req) => {
-const authHeader = req.headers.get('Authorization');
-const supabaseClient = createClient(
-  Deno.env.get('SUPABASE_URL') ?? "",
-  Deno.env.get('SUPABASE_ANON_KEY') ?? "",
-  {global: { headers: { Authorization: authHeader } }},
-);
+  const authHeader = req.headers.get("Authorization")!;
+  const supabaseClient = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    { global: { headers: { Authorization: authHeader } } },
+  );
 
-//Get the session or user object
-const authToken = authHeader.replace('Bearer ', '');
-const { data} = await supabaseClient.auth.getUser(authToken);
-const user = data.user;
-//Check if the user exists
-if (!user) {
-  return new Response(
-    JSON.stringify({error: 'Unauthorized'}),
-    { headers: { "Content-Type": "application/json" } },
-  )
-}
+  // Get the session or user object
+  const authToken = authHeader.replace("Bearer ", "");
+  const { data } = await supabaseClient.auth.getUser(authToken);
+  const user = data.user;
+  if (!user) {
+    return new Response(
+      JSON.stringify({ error: "User not found" }),
+      { headers: { "Content-Type": "application/json" } },
+    );
+  }
 
   const serverClient = StreamChat.getInstance(
-    Deno.env.get('STREAM_API_KEY'),
-    Deno.env.get('STREAM_API_SECRET')
+    Deno.env.get("STREAM_API_KEY"),
+    Deno.env.get("STREAM_API_SECRET"),
   );
 
   const token = serverClient.createToken(user.id);
 
   return new Response(
-    JSON.stringify({token}),
+    JSON.stringify({ token }),
     { headers: { "Content-Type": "application/json" } },
-  )
-})
+  );
+});
 
 /* To invoke locally:
 
