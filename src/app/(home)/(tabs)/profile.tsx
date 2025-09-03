@@ -181,6 +181,11 @@ export default function ProfileScreen() {
             if (client) {
                 await client.disconnectUser();
             }
+            
+            // Clear stored user data for push notifications
+            await AsyncStorage.removeItem("@userId");
+            await AsyncStorage.removeItem("@userName");
+            
             // Then sign out from Supabase
             await supabase.auth.signOut();
         } catch (error) {

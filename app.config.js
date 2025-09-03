@@ -12,6 +12,7 @@ export default ({ config }) => ({
     backgroundColor: "#ffffff"
   },
   assetBundlePatterns: ["**/*"],
+  scheme: "ranna",
   android: {
     adaptiveIcon: {
       foregroundImage: "./assets/adaptive-icon.png",
