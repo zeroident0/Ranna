@@ -21,29 +21,47 @@ export default function NotificationsProvider({ children }: PropsWithChildren) {
   };
 
   useEffect(() => {
+    if (!user) {
+      console.log('🔔 NotificationsProvider: No user available, waiting...');
+      return;
+    }
+
+    console.log('🔔 NotificationsProvider: User available, initializing notifications for:', user.id);
+    
     // Register FCM token with stream chat server.
     const registerPushToken = async () => {
-      const token = await messaging().getToken();
-      const push_provider = 'firebase';
-      const push_provider_name = 'Firebase'; // name an alias for your push provider (optional)
-      client.addDevice(token, push_provider, user.id, push_provider_name);
-      // client.setLocalDevice({
-      //   id: token,
-      //   push_provider,
-      //   // push_provider_name is meant for optional multiple providers support, see: https://getstream.io/chat/docs/react/push_providers_and_multi_bundle
-      //   push_provider_name,
-      // });
+      try {
+        console.log('🔔 NotificationsProvider: Getting FCM token...');
+        const token = await messaging().getToken();
+        console.log('🔔 NotificationsProvider: FCM token received:', token ? 'Token valid' : 'No token');
+        
+        const push_provider = 'firebase';
+        const push_provider_name = 'Firebase'; // name an alias for your push provider (optional)
+        console.log('🔔 NotificationsProvider: Adding device to Stream Chat...');
+        client.addDevice(token, push_provider, user.id, push_provider_name);
+        console.log('🔔 NotificationsProvider: Device added successfully');
+      } catch (error) {
+        console.log('🔔 NotificationsProvider: Error registering push token:', error);
+      }
     };
 
     const init = async () => {
-      await requestPermission();
-      await registerPushToken();
-
-      setIsReady(true);
+      try {
+        console.log('🔔 NotificationsProvider: Requesting permissions...');
+        await requestPermission();
+        console.log('🔔 NotificationsProvider: Permissions granted');
+        
+        await registerPushToken();
+        console.log('🔔 NotificationsProvider: Initialization complete');
+        setIsReady(true);
+      } catch (error) {
+        console.log('🔔 NotificationsProvider: Error during initialization:', error);
+        setIsReady(true); // Set ready even if there's an error to prevent infinite loading
+      }
     };
 
     init();
-  }, []);
+  }, [user]);
 
   if (!isReady) {
     return null;

@@ -105,7 +105,7 @@ export default function Avatar({ url, size = 150, onUpload }: Props) {
       )}
       <View>
         <Button
-          title={uploading ? 'Uploading ...' : 'Upload'}
+          title={uploading ? 'Uploading Avatar...' : 'Upload'}
           onPress={uploadAvatar}
           disabled={uploading}
         />

@@ -4,14 +4,25 @@ import { useAuth } from '../../providers/AuthProvider';
 import VideoProvider from '../../providers/VideoProvider';
 import CallProvider from '../../providers/CallProvider';
 import NotificationsProvider from '../../providers/NotificationsProvider';
+import { Text } from 'react-native';
 
 export default function HomeLayout() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  console.log('🏠 HomeLayout: loading =', loading, 'user =', user ? 'logged in' : 'not logged in');
+
+  if (loading) {
+    console.log('🏠 HomeLayout: Showing loading state');
+    // return null; // Let the root handle loading state
+    return <Text>Loading...IN Home Layout</Text>;
+  }
 
   if (!user) {
+    console.log('🏠 HomeLayout: No user, redirecting to auth');
     return <Redirect href="/(auth)/login" />;
   }
 
+  console.log('🏠 HomeLayout: User logged in, rendering providers and stack');
   return (
     <ChatProvider>
       <NotificationsProvider>

@@ -47,6 +47,13 @@ export default function Auth() {
     setLoading(false);
   }
 
+  async function signOut() {
+    setLoading(true);
+    const { error } = await supabase.auth.signOut();
+    if (error) Alert.alert(error.message);
+    setLoading(false);
+  }
+
   return (
     <View style={styles.container}>
       <View style={[styles.verticallySpaced, styles.mt20]}>
@@ -82,6 +89,14 @@ export default function Auth() {
           title="Sign up"
           disabled={loading}
           onPress={() => signUpWithEmail()}
+        />
+      </View>
+      <View style={styles.verticallySpaced}>
+        <Button
+          title="Sign Out (Clear Session)"
+          disabled={loading}
+          onPress={() => signOut()}
+          buttonStyle={{ backgroundColor: '#ff4444' }}
         />
       </View>
     </View>

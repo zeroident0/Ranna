@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: '#25D366', // WhatsApp green color
+        backgroundColor: '#007AFF', // iOS blue color
         justifyContent: 'center',
         alignItems: 'center',
         elevation: 8, // Android shadow

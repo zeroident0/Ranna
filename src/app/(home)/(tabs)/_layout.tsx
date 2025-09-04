@@ -1,5 +1,7 @@
 import { Tabs } from 'expo-router';
 import { FontAwesome5 } from '@expo/vector-icons';
+import AntDesign from '@expo/vector-icons/AntDesign';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 export default function TabsNavigator() {
   return (
@@ -9,7 +11,7 @@ export default function TabsNavigator() {
         options={{
           title: 'Chats',
           tabBarIcon: ({ size, color }) => (
-            <FontAwesome5 name="comments" size={size} color={color} />
+            <Ionicons name="chatbubble-outline" size={size} color={color} />
           ),
         }}
       />
@@ -18,7 +20,7 @@ export default function TabsNavigator() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ size, color }) => (
-            <FontAwesome5 name="user-alt" size={size} color={color} />
+            <AntDesign name="user" size={size} color={color} />
           ),
         }}
       />
