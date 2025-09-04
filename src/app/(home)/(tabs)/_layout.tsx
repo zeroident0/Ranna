@@ -9,7 +9,7 @@ export default function TabsNavigator() {
         options={{
           title: 'Chats',
           tabBarIcon: ({ size, color }) => (
-            <FontAwesome5 name="home" size={size} color={color} />
+            <FontAwesome5 name="comments" size={size} color={color} />
           ),
         }}
       />

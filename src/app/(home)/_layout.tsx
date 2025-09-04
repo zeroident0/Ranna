@@ -3,7 +3,7 @@ import ChatProvider from '../../providers/ChatProvider';
 import { useAuth } from '../../providers/AuthProvider';
 import VideoProvider from '../../providers/VideoProvider';
 import CallProvider from '../../providers/CallProvider';
-import NotificationsProvider from '../../providers/NotifcationsProvider';
+import NotificationsProvider from '../../providers/NotificationsProvider';
 
 export default function HomeLayout() {
   const { user } = useAuth();
@@ -19,6 +19,9 @@ export default function HomeLayout() {
           <CallProvider>
             <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen name="users" options={{ title: 'Users' }} />
+              <Stack.Screen name="call" options={{ title: 'Call' }} />
+              <Stack.Screen name="channel/[cid]" options={{ title: 'Channel' }} />
             </Stack>
           </CallProvider>
         </VideoProvider>
