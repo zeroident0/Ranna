@@ -43,6 +43,15 @@ export default function ProfileImage({
       setLoading(true);
       setError(false);
 
+      // Check if the path is already a full URL
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        // It's already a full URL, use it directly
+        setImageUrl(path);
+        setLoading(false);
+        return;
+      }
+
+      // It's a path, download from Supabase storage
       const { data, error } = await supabase.storage
         .from('avatars')
         .download(path);

@@ -27,6 +27,17 @@ export default function ChannelScreen() {
   const videoClient = useStreamVideoClient();
   const { user } = useAuth();
 
+  // Determine if this is a group chat
+  const isGroupChat = useMemo(() => {
+    if (!channel) return false;
+    const memberCount = Object.keys(channel.state.members).length;
+    // Check if it has a name (groups have names, 1-on-1 chats don't) or has more than 2 members
+    return (
+      (channel.data?.name && memberCount >= 2) || // If it has a name and at least 2 members, it's a group
+      memberCount > 2 // More than 2 members is definitely a group
+    );
+  }, [channel]);
+
   useEffect(() => {
     const fetchChannel = async () => {
       const channels = await client.queryChannels({ cid });
@@ -69,9 +80,30 @@ export default function ChannelScreen() {
     fetchOtherParticipantProfile();
   }, [channel, user]);
 
-  const getOtherParticipantName = (): string => {
+  const getChannelName = (): string => {
     if (!channel || !user) return 'Channel';
     
+    // For group chats, use the channel name or generate one
+    if (isGroupChat) {
+      if (channel.data?.name) {
+        return channel.data.name;
+      }
+      
+      // Generate a name from member names
+      const members = Object.values(channel.state.members);
+      const otherMembers = members.filter(member => member.user_id !== user.id);
+      const memberNames = otherMembers.map(member => 
+        member.user?.name || member.user?.full_name || 'Unknown'
+      );
+      
+      if (memberNames.length <= 2) {
+        return memberNames.join(', ');
+      } else {
+        return `${memberNames.slice(0, 2).join(', ')} and ${memberNames.length - 2} others`;
+      }
+    }
+    
+    // For 1-on-1 chats, use the other participant's name
     const members = Object.values(channel.state.members);
     const otherMember = members.find(member => member.user_id !== user.id);
     
@@ -111,6 +143,91 @@ export default function ChannelScreen() {
     return otherMember?.user?.full_name as string || '';
   };
 
+  const GroupAvatar = () => {
+    if (!channel || !user) {
+      return (
+        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#e0e0e0' }} />
+      );
+    }
+
+    // Check if group has a dedicated image
+    if (channel.data?.image) {
+      return (
+        <ProfileImage
+          avatarUrl={channel.data.image as string}
+          fullName={(channel.data.name as string) || 'Group'}
+          size={32}
+          showBorder={false}
+        />
+      );
+    }
+
+    // Fallback to member avatars if no group image
+    const members = Object.values(channel.state.members);
+    const otherMembers = members.filter(member => member.user_id !== user.id);
+    const displayMembers = otherMembers.slice(0, 3); // Show max 3 avatars
+
+    if (displayMembers.length === 0) {
+      return (
+        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#e0e0e0' }} />
+      );
+    }
+
+    if (displayMembers.length === 1) {
+      const member = displayMembers[0];
+      return (
+            <ProfileImage
+              avatarUrl={member.user?.image as string}
+              fullName={(member.user?.name || member.user?.full_name) as string}
+              size={32}
+              showBorder={false}
+            />
+      );
+    }
+
+    // Multiple members - show overlapping avatars
+    return (
+      <View style={{ width: 32, height: 32, flexDirection: 'row' }}>
+        {displayMembers.slice(0, 2).map((member, index) => (
+          <View
+            key={member.user_id}
+            style={{
+              position: 'absolute',
+              left: index * 12,
+              zIndex: 2 - index,
+            }}
+          >
+            <ProfileImage
+              avatarUrl={member.user?.image as string}
+              fullName={(member.user?.name || member.user?.full_name) as string}
+              size={24}
+              showBorder={false}
+            />
+          </View>
+        ))}
+        {otherMembers.length > 2 && (
+          <View
+            style={{
+              position: 'absolute',
+              left: 24,
+              width: 24,
+              height: 24,
+              borderRadius: 12,
+              backgroundColor: '#007AFF',
+              justifyContent: 'center',
+              alignItems: 'center',
+              zIndex: 0,
+            }}
+          >
+            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+              +{otherMembers.length - 2}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   const ProfilePicture = () => {
     // Show loading placeholder while fetching profile data
     if (isProfileLoading) {
@@ -119,6 +236,12 @@ export default function ChannelScreen() {
       );
     }
     
+    // For group chats, show group avatar
+    if (isGroupChat) {
+      return <GroupAvatar />;
+    }
+    
+    // For 1-on-1 chats, show other participant's avatar
     const imageUrl = getOtherParticipantImage();
     const fullName = getOtherParticipantFullName();
     
@@ -156,7 +279,7 @@ export default function ChannelScreen() {
   const HeaderTitle = () => {
     return (
       <Text style={{ marginLeft: 8, fontSize: 17, fontWeight: '600' }}>
-        {getOtherParticipantName()}
+        {getChannelName()}
       </Text>
     );
   };
@@ -190,7 +313,19 @@ export default function ChannelScreen() {
           headerTitle: () => <HeaderTitle />,
           headerLeft: () => <HeaderLeft />,
           headerRight: () => (
-            <Ionicons name="call" size={24} color="gray" onPress={joinCall} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {isGroupChat && (
+                <TouchableOpacity
+                  onPress={() => router.push(`/(home)/group-info?cid=${cid}`)}
+                  style={{ marginRight: 16 }}
+                >
+                  <Ionicons name="information-circle-outline" size={24} color="gray" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={joinCall}>
+                <Ionicons name="call" size={24} color="gray" />
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />
