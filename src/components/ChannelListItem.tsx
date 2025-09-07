@@ -8,9 +8,17 @@ import { router } from 'expo-router';
 
 interface ChannelListItemProps {
   channel: ChannelType;
+  matchingMessages?: any[];
+  searchQuery?: string;
+  isSearchResult?: boolean;
 }
 
-export default function ChannelListItem({ channel }: ChannelListItemProps) {
+export default function ChannelListItem({ 
+  channel, 
+  matchingMessages, 
+  searchQuery, 
+  isSearchResult = false 
+}: ChannelListItemProps) {
   const { user } = useAuth();
 
   // Determine if this is a group chat
@@ -135,8 +143,42 @@ export default function ChannelListItem({ channel }: ChannelListItemProps) {
     );
   };
 
+  // Get matching message text for search results
+  const getMatchingMessageText = () => {
+    if (!isSearchResult || !matchingMessages || matchingMessages.length === 0) {
+      return null;
+    }
+
+    // Get the most recent matching message
+    const mostRecentMatch = matchingMessages[matchingMessages.length - 1];
+    const senderName = mostRecentMatch.user?.name || mostRecentMatch.user?.full_name || 'Someone';
+    const messageText = mostRecentMatch.text || 'Sent an attachment';
+    
+    // Highlight the search query in the message text
+    const highlightText = (text: string, query: string) => {
+      if (!query) return text;
+      const regex = new RegExp(`(${query})`, 'gi');
+      return text.replace(regex, '**$1**');
+    };
+
+    return {
+      text: `${senderName}: ${messageText}`,
+      highlightedText: `${senderName}: ${highlightText(messageText, searchQuery || '')}`,
+      matchCount: matchingMessages.length
+    };
+  };
+
   // Get last message preview
   const getLastMessage = () => {
+    // If this is a search result, show matching message
+    if (isSearchResult) {
+      const matchingMessage = getMatchingMessageText();
+      if (matchingMessage) {
+        return matchingMessage.text;
+      }
+    }
+
+    // Otherwise show the last message
     const lastMessage = channel.state.messages[channel.state.messages.length - 1];
     if (!lastMessage) return 'No messages yet';
     
@@ -191,10 +233,17 @@ export default function ChannelListItem({ channel }: ChannelListItemProps) {
         </View>
         
         <View style={styles.messageRow}>
-          <Text style={styles.lastMessage} numberOfLines={1}>
-            {getLastMessage()}
-          </Text>
-          {isGroupChat() && (
+          <View style={styles.messageContainer}>
+            <Text style={styles.lastMessage} numberOfLines={1}>
+              {getLastMessage()}
+            </Text>
+            {isSearchResult && getMatchingMessageText() && (
+              <Text style={styles.matchCount}>
+                {getMatchingMessageText()?.matchCount} match{getMatchingMessageText()?.matchCount !== 1 ? 'es' : ''}
+              </Text>
+            )}
+          </View>
+          {isGroupChat() && !isSearchResult && (
             <Text style={styles.memberCount}>
               {getMemberCount()}
             </Text>
@@ -262,11 +311,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  messageContainer: {
+    flex: 1,
+    marginRight: 8,
+  },
   lastMessage: {
     fontSize: 14,
     color: '#666',
-    flex: 1,
-    marginRight: 8,
+  },
+  matchCount: {
+    fontSize: 12,
+    color: '#007AFF',
+    fontWeight: '500',
+    marginTop: 2,
   },
   memberCount: {
     fontSize: 12,
