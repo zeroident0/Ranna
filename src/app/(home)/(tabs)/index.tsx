@@ -183,7 +183,7 @@ export default function MainTabScreen() {
               onPress={handleCloseSearch}
               style={styles.closeButton}
             >
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Ionicons name="close" size={24} color="#FF3B30" />
             </TouchableOpacity>
           ) : () => (
             <TouchableOpacity
@@ -195,127 +195,112 @@ export default function MainTabScreen() {
           ),
         }}
       />
-      {showSearch ? (
-        <SafeAreaView style={styles.searchContainer} edges={['bottom']}>
-          {/* Search Input */}
-          <View style={styles.searchInputContainer}>
-            <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder={`Search ${activeTab}...`}
-              placeholderTextColor="#999"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Ionicons name="close-circle" size={20} color="#666" />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Tab Selector */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'chats' && styles.activeTab]}
-              onPress={() => setActiveTab('chats')}
-            >
-              <Text style={[styles.tabText, activeTab === 'chats' && styles.activeTabText]}>
-                Chats
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'users' && styles.activeTab]}
-              onPress={() => setActiveTab('users')}
-            >
-              <Text style={[styles.tabText, activeTab === 'users' && styles.activeTabText]}>
-                Users
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Search Results */}
-          {isSearching ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#007AFF" />
-              <Text style={styles.loadingText}>Searching...</Text>
-            </View>
-          ) : searchQuery.trim() ? (
-            <FlatList
-              data={searchResults}
-               renderItem={({ item }) => 
-                 activeTab === 'chats' ? 
-                   <ChannelListItem 
-                     channel={item.channel} 
-                     matchingMessages={item.matchingMessages}
-                     searchQuery={searchQuery}
-                     isSearchResult={true}
-                   /> : 
-                   <UserListItem user={item} />
-               }
-              keyExtractor={(item, index) => `${activeTab}-${index}`}
-              contentContainerStyle={styles.resultsContainer}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={() => (
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="search" size={48} color="#ccc" />
-                  <Text style={styles.emptyText}>No {activeTab} found</Text>
-                  <Text style={styles.emptySubtext}>Try a different search term</Text>
-                </View>
-              )}
-            />
-          ) : (
-            // Show normal chat list when search is active but no query is entered
-            <>
-              {channelListError ? (
-                <View style={styles.errorContainer}>
-                  <Ionicons name="wifi-outline" size={48} color="#ccc" />
-                  <Text style={styles.errorText}>{channelListError}</Text>
-                  <TouchableOpacity 
-                    style={styles.retryButton}
-                    onPress={refreshChannelList}
-                  >
-                    <Text style={styles.retryButtonText}>Retry</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <ChannelList
-                  filters={{ members: { $in: [user.id] } }}
-                  Preview={ChannelListItem}
-                  sort={{ updated_at: -1 }}
-                  options={{ limit: 20 }}
-                />
-              )}
-              <NewChatButton />
-            </>
-          )}
-        </SafeAreaView>
+      
+      {/* Persistent Channel List - Always rendered */}
+      {channelListError ? (
+        <View style={styles.errorContainer}>
+          <Ionicons name="wifi-outline" size={48} color="#ccc" />
+          <Text style={styles.errorText}>{channelListError}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={refreshChannelList}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
-        <>
-          {channelListError ? (
-            <View style={styles.errorContainer}>
-              <Ionicons name="wifi-outline" size={48} color="#ccc" />
-              <Text style={styles.errorText}>{channelListError}</Text>
-              <TouchableOpacity 
-                style={styles.retryButton}
-                onPress={refreshChannelList}
+        <View style={[styles.channelListContainer, showSearch && styles.channelListWithSearch]}>
+          <ChannelList
+            filters={{ members: { $in: [user.id] } }}
+            Preview={ChannelListItem}
+            sort={{ updated_at: -1 }}
+            options={{ limit: 20 }}
+          />
+        </View>
+      )}
+      <NewChatButton />
+
+      {/* Search Overlay - Only shown when search is active */}
+      {showSearch && (
+        <View style={[styles.searchOverlay, !searchQuery.trim() && styles.searchOverlayTransparent]}>
+          <SafeAreaView style={[styles.searchContainer, !searchQuery.trim() && styles.searchContainerTransparent]} edges={['bottom']}>
+            {/* Search Input */}
+            <View style={styles.searchInputContainer}>
+              <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder={`Search ${activeTab}...`}
+                placeholderTextColor="#999"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoFocus
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color="#666" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Tab Selector */}
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'chats' && styles.activeTab]}
+                onPress={() => setActiveTab('chats')}
               >
-                <Text style={styles.retryButtonText}>Retry</Text>
+                <Text style={[styles.tabText, activeTab === 'chats' && styles.activeTabText]}>
+                  Chats
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'users' && styles.activeTab]}
+                onPress={() => setActiveTab('users')}
+              >
+                <Text style={[styles.tabText, activeTab === 'users' && styles.activeTabText]}>
+                  Users
+                </Text>
               </TouchableOpacity>
             </View>
-          ) : (
-            <ChannelList
-              filters={{ members: { $in: [user.id] } }}
-              Preview={ChannelListItem}
-              sort={{ updated_at: -1 }}
-              options={{ limit: 20 }}
-            />
-          )}
-          <NewChatButton />
-        </>
+
+            {/* Search Results - Only show when there's a query */}
+            {searchQuery.trim() && (
+              <>
+                {isSearching ? (
+                  <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                    <Text style={styles.loadingText}>Searching...</Text>
+                  </View>
+                ) : (
+                  <FlatList
+                    data={searchResults}
+                     renderItem={({ item }) => 
+                       activeTab === 'chats' ? 
+                         <ChannelListItem 
+                           channel={item.channel} 
+                           matchingMessages={item.matchingMessages}
+                           searchQuery={searchQuery}
+                           isSearchResult={true}
+                         /> : 
+                         <UserListItem user={item} />
+                     }
+                    keyExtractor={(item, index) => `${activeTab}-${index}`}
+                    contentContainerStyle={styles.resultsContainer}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={() => (
+                      <View style={styles.emptyContainer}>
+                        <Ionicons name="search" size={48} color="#ccc" />
+                        <Text style={styles.emptyText}>No {activeTab} found</Text>
+                        <Text style={styles.emptySubtext}>Try a different search term</Text>
+                      </View>
+                    )}
+                  />
+                )}
+              </>
+            )}
+          </SafeAreaView>
+        </View>
       )}
     </View>
   );
@@ -333,14 +318,30 @@ const styles = StyleSheet.create({
     padding: 8,
     marginRight: 8,
   },
-  cancelText: {
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '500',
+  channelListContainer: {
+    flex: 1,
+  },
+  channelListWithSearch: {
+    paddingTop: 145, // Space for search input + tab selector
+  },
+  searchOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#f8f9fa',
+    zIndex: 1000,
+  },
+  searchOverlayTransparent: {
+    backgroundColor: 'transparent',
   },
   searchContainer: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  searchContainerTransparent: {
+    backgroundColor: 'transparent',
   },
   searchInputContainer: {
     flexDirection: 'row',
