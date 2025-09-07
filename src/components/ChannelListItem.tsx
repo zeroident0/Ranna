@@ -226,7 +226,9 @@ const ChannelListItem = memo(function ChannelListItem({
 
     // Otherwise show the last message
     const lastMessage = channel.state.messages[channel.state.messages.length - 1];
-    if (!lastMessage) return 'No messages yet';
+    if (!lastMessage) {
+      return 'No messages yet';
+    }
     
     const messageText = lastMessage.text || 'Sent an attachment';
     

@@ -8,11 +8,12 @@ import NewChatButton from '../../../components/NewChatButton';
 import ChannelListItem from '../../../components/ChannelListItem';
 import UserListItem from '../../../components/UserListItem';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 import { useChatContext } from 'stream-chat-expo';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import { supabase } from '../../../lib/supabase';
+import { Channel as ChannelType } from 'stream-chat';
 
 export default function MainTabScreen() {
   const { user } = useAuth();
@@ -23,7 +24,44 @@ export default function MainTabScreen() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [activeTab, setActiveTab] = useState<'chats' | 'users'>('chats');
-  const [channelListError, setChannelListError] = useState<string | null>(null);
+  // Note: channelListError removed - built-in ChannelList handles errors automatically
+  const [channelFilter, setChannelFilter] = useState<'all' | 'chats' | 'groups'>('all');
+  
+  // Helper function to determine if a channel is a group chat
+  const isGroupChat = (channel: ChannelType) => {
+    const memberCount = Object.keys(channel.state.members).length;
+    // Check if it has a name (groups have names, 1-on-1 chats don't) or has more than 2 members
+    return (
+      (channel.data?.name && memberCount >= 2) || // If it has a name and at least 2 members, it's a group
+      memberCount > 2 // More than 2 members is definitely a group
+    );
+  };
+
+  // Create filter based on channel type selection
+  const getChannelFilter = useCallback(() => {
+    const baseFilter = {
+      members: { $in: [user?.id] },
+    };
+
+    switch (channelFilter) {
+      case 'chats':
+        // Direct chats: channels with exactly 2 members (1-on-1)
+        return {
+          ...baseFilter,
+          member_count: { $eq: 2 }
+        };
+      case 'groups':
+        // Group chats: channels with more than 2 members
+        return {
+          ...baseFilter,
+          member_count: { $gt: 2 }
+        };
+      case 'all':
+      default:
+        // All channels: just filter by membership
+        return baseFilter;
+    }
+  }, [user?.id, channelFilter]);
   
   if (!user) {
     return (
@@ -34,22 +72,7 @@ export default function MainTabScreen() {
   }
 
 
-  const refreshChannelList = async () => {
-    console.log('Manually refreshing channel list...');
-    try {
-      if (!isOnline) {
-        setChannelListError('No internet connection');
-        return;
-      }
-      
-      setChannelListError(null);
-      // Stream Chat will automatically update the channel list when data changes
-      // No need to force refresh unless there's a specific error
-    } catch (error) {
-      console.error('Error refreshing channels:', error);
-      setChannelListError('Failed to load chat list. Please try again.');
-    }
-  };
+  // Note: refreshChannelList removed - built-in ChannelList handles this automatically
 
   // Search function
   const performSearch = async (query: string) => {
@@ -152,25 +175,8 @@ export default function MainTabScreen() {
     setIsSearching(false);
   };
 
-  // Handle network status changes for smart refreshing
-  useEffect(() => {
-    if (isOnline && channelListError) {
-      console.log('Network came back online, refreshing channel list');
-      refreshChannelList();
-    }
-  }, [isOnline]);
 
-  // Only refresh channel list when needed (network reconnection, not on tab focus)
-  useFocusEffect(
-    useCallback(() => {
-      console.log('MainTabScreen focused - checking if refresh needed');
-      // Only refresh if there was a previous error or if we're coming back online
-      if (channelListError && isOnline) {
-        console.log('Refreshing channel list due to previous error and network available');
-        refreshChannelList();
-      }
-    }, [channelListError, isOnline])
-  );
+  // Note: Network and focus handling removed - built-in ChannelList handles this automatically
 
   return (
     <View style={styles.container}>
@@ -196,25 +202,67 @@ export default function MainTabScreen() {
         }}
       />
       
-      {/* Persistent Channel List - Always rendered */}
-      {channelListError ? (
-        <View style={styles.errorContainer}>
-          <Ionicons name="wifi-outline" size={48} color="#ccc" />
-          <Text style={styles.errorText}>{channelListError}</Text>
-          <TouchableOpacity 
-            style={styles.retryButton}
-            onPress={refreshChannelList}
+      {/* Filter Tabs */}
+      {!showSearch && (
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[styles.filterTab, channelFilter === 'all' && styles.activeFilterTab]}
+            onPress={() => setChannelFilter('all')}
           >
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={[styles.filterTabText, channelFilter === 'all' && styles.activeFilterTabText]}>
+              All
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterTab, channelFilter === 'chats' && styles.activeFilterTab]}
+            onPress={() => setChannelFilter('chats')}
+          >
+            <Text style={[styles.filterTabText, channelFilter === 'chats' && styles.activeFilterTabText]}>
+              Chats
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.filterTab, channelFilter === 'groups' && styles.activeFilterTab]}
+            onPress={() => setChannelFilter('groups')}
+          >
+            <Text style={[styles.filterTabText, channelFilter === 'groups' && styles.activeFilterTabText]}>
+              Groups
+            </Text>
           </TouchableOpacity>
         </View>
-      ) : (
+      )}
+
+      {/* Use Stream Chat's built-in ChannelList for real-time updates */}
+      {!showSearch && (
         <View style={[styles.channelListContainer, showSearch && styles.channelListWithSearch]}>
           <ChannelList
-            filters={{ members: { $in: [user.id] } }}
-            Preview={ChannelListItem}
+            key={channelFilter} // Force re-render when filter changes
+            filters={getChannelFilter()}
             sort={{ updated_at: -1 }}
             options={{ limit: 20 }}
+            onSelect={(channel) => {
+              router.push(`/(home)/channel/${channel.cid}`);
+            }}
+            Preview={ChannelListItem}
+            EmptyStateIndicator={() => (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="chatbubbles-outline" size={48} color="#ccc" />
+                <Text style={styles.emptyText}>
+                  {channelFilter === 'all' ? 'No conversations yet' : 
+                   channelFilter === 'chats' ? 'No direct chats' : 'No group chats'}
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  {channelFilter === 'all' ? 'Start a new conversation to get started' :
+                   channelFilter === 'chats' ? 'Start a direct message with someone' : 'Create or join a group chat'}
+                </Text>
+              </View>
+            )}
+            LoadingIndicator={() => (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={styles.loadingText}>Loading conversations...</Text>
+              </View>
+            )}
           />
         </View>
       )}
@@ -323,6 +371,9 @@ const styles = StyleSheet.create({
   },
   channelListWithSearch: {
     paddingTop: 145, // Space for search input + tab selector
+  },
+  channelListContent: {
+    flexGrow: 1,
   },
   searchOverlay: {
     position: 'absolute',
@@ -452,5 +503,39 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 12,
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  filterTab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  activeFilterTab: {
+    backgroundColor: '#007AFF',
+  },
+  filterTabText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#666',
+  },
+  activeFilterTabText: {
+    color: 'white',
   },
 });
