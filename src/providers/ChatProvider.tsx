@@ -10,11 +10,20 @@ const client = StreamChat.getInstance(process.env.EXPO_PUBLIC_STREAM_API_KEY);
 
 export default function ChatProvider({ children }: PropsWithChildren) {
   const [isReady, setIsReady] = useState(false);
-  const { profile } = useAuth();
+  const { profile, loading } = useAuth();
 
   useEffect(() => {
+    if (loading) {
+      console.log('💬 ChatProvider: Auth still loading, waiting...');
+      setIsReady(false);
+      return;
+    }
+    
     if (!profile) {
-      console.log('💬 ChatProvider: No profile available, waiting...');
+      console.log('💬 ChatProvider: No profile available, disconnecting and waiting...');
+      // Disconnect user when no profile (logout)
+      client.disconnectUser();
+      setIsReady(false);
       return;
     }
     
@@ -78,12 +87,10 @@ export default function ChatProvider({ children }: PropsWithChildren) {
     return () => {
       console.log('💬 ChatProvider: Cleaning up connection');
       clearTimeout(timeoutId);
-      if (isReady) {
-        client.disconnectUser();
-      }
+      client.disconnectUser();
       setIsReady(false);
     };
-  }, [profile?.id]);
+  }, [profile?.id, loading]);
 
   if (!isReady) {
     return <ActivityIndicator />;

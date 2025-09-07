@@ -25,19 +25,30 @@ const AuthContext = createContext<AuthContext>({
 
 export default function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState();
+  const [profile, setProfile] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     console.log('🔐 AuthProvider: Getting initial session...');
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('🔐 AuthProvider: Error getting session:', error);
+      }
       console.log('🔐 AuthProvider: Initial session received:', session ? 'User logged in' : 'No user');
+      if (session) {
+        console.log('🔐 AuthProvider: Session user ID:', session.user.id);
+        console.log('🔐 AuthProvider: Session user email:', session.user.email);
+      }
       setSession(session);
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('🔐 AuthProvider: Auth state changed:', event, session ? 'User logged in' : 'No user');
+      if (session) {
+        console.log('🔐 AuthProvider: New session user ID:', session.user.id);
+        console.log('🔐 AuthProvider: New session user email:', session.user.email);
+      }
       setSession(session);
       setLoading(false);
     });
@@ -56,8 +67,12 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     }
 
     console.log('🔐 AuthProvider: Fetching profile for user:', session.user.id);
+    console.log('🔐 AuthProvider: User metadata:', session.user.user_metadata);
+    console.log('🔐 AuthProvider: User email:', session.user.email);
+    
     const fetchProfile = async () => {
       try {
+        console.log('🔐 AuthProvider: Attempting to fetch profile from database...');
         let { data, error } = await supabase
           .from('profiles')
           .select('*')
@@ -66,12 +81,72 @@ export default function AuthProvider({ children }: PropsWithChildren) {
         
         if (error) {
           console.log('🔐 AuthProvider: Error fetching profile:', error);
+          console.log('🔐 AuthProvider: Error code:', error.code);
+          
+          // If profile doesn't exist, create one
+          if (error.code === 'PGRST116') {
+            console.log('🔐 AuthProvider: Profile not found (PGRST116), creating new profile...');
+            
+            // Generate a unique username
+            const baseUsername = session.user.email?.split('@')[0] || 'user';
+            const uniqueUsername = `${baseUsername}_${session.user.id.slice(0, 8)}`;
+            
+            const profileData = {
+              id: session.user.id,
+              full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+              username: uniqueUsername,
+              avatar_url: session.user.user_metadata?.avatar_url || null,
+              bio: null
+            };
+            
+            console.log('🔐 AuthProvider: Profile data to insert:', profileData);
+            
+            let { data: newProfile, error: createError } = await supabase
+              .from('profiles')
+              .insert(profileData)
+              .select()
+              .single();
+            
+            // If username conflict, try with a different username
+            if (createError && createError.code === '23505' && createError.message.includes('username')) {
+              console.log('🔐 AuthProvider: Username conflict, trying with timestamp...');
+              const timestampUsername = `user_${Date.now()}`;
+              const retryProfileData = {
+                ...profileData,
+                username: timestampUsername
+              };
+              
+              console.log('🔐 AuthProvider: Retry profile data:', retryProfileData);
+              
+              const retryResult = await supabase
+                .from('profiles')
+                .insert(retryProfileData)
+                .select()
+                .single();
+              
+              newProfile = retryResult.data;
+              createError = retryResult.error;
+            }
+            
+            if (createError) {
+              console.error('🔐 AuthProvider: Error creating profile:', createError);
+              console.error('🔐 AuthProvider: Create error details:', createError);
+              setProfile(null);
+            } else {
+              console.log('🔐 AuthProvider: Profile created successfully:', newProfile);
+              setProfile(newProfile);
+            }
+          } else {
+            console.log('🔐 AuthProvider: Different error, not creating profile');
+            setProfile(null);
+          }
         } else {
-          console.log('🔐 AuthProvider: Profile fetched successfully:', data ? 'Profile found' : 'No profile');
+          console.log('🔐 AuthProvider: Profile fetched successfully:', data);
+          setProfile(data);
         }
-        setProfile(data);
       } catch (err) {
         console.log('🔐 AuthProvider: Exception fetching profile:', err);
+        setProfile(null);
       }
     };
     fetchProfile();

@@ -14,11 +14,21 @@ export default function VideoProvider({ children }: PropsWithChildren) {
   const [videoClient, setVideoClient] = useState<StreamVideoClient | null>(
     null
   );
-  const { profile } = useAuth();
+  const { profile, loading } = useAuth();
 
   useEffect(() => {
+    if (loading) {
+      console.log('📹 VideoProvider: Auth still loading, waiting...');
+      return;
+    }
+    
     if (!profile) {
-      console.log('📹 VideoProvider: No profile available, waiting...');
+      console.log('📹 VideoProvider: No profile available, clearing video client...');
+      // Clear video client when no profile (logout)
+      if (videoClient) {
+        videoClient.disconnectUser();
+      }
+      setVideoClient(null);
       return;
     }
 
@@ -71,8 +81,9 @@ export default function VideoProvider({ children }: PropsWithChildren) {
       if (videoClient) {
         videoClient.disconnectUser();
       }
+      setVideoClient(null);
     };
-  }, [profile?.id]);
+  }, [profile?.id, loading]);
 
   if (!videoClient) {
     console.log('📹 VideoProvider: No video client, showing loading or fallback');

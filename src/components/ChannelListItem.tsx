@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Dimensions, StatusBar } from 'react-native';
 import { Channel as ChannelType } from 'stream-chat';
 import { useAuth } from '../providers/AuthProvider';
 import ProfileImage from './ProfileImage';
@@ -20,6 +20,9 @@ export default function ChannelListItem({
   isSearchResult = false 
 }: ChannelListItemProps) {
   const { user } = useAuth();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string>('');
+  const [selectedImageName, setSelectedImageName] = useState<string>('');
 
   // Determine if this is a group chat
   const isGroupChat = () => {
@@ -65,12 +68,24 @@ export default function ChannelListItem({
       // Check if group has a dedicated image
       if (channel.data?.image) {
         return (
-          <ProfileImage
-            avatarUrl={channel.data.image as string}
-            fullName={(channel.data.name as string) || 'Group'}
-            size={48}
-            showBorder={false}
-          />
+           <TouchableOpacity 
+             style={styles.avatarWithIndicator}
+             onPress={(event) => handleImagePress(channel.data.image as string || '', (channel.data.name as string) || 'Group', event)}
+             activeOpacity={0.7}
+           >
+            <ProfileImage
+              avatarUrl={channel.data.image as string}
+              fullName={(channel.data.name as string) || 'Group'}
+              size={48}
+              showBorder={false}
+            />
+            {/* For groups, show online indicator if any member is online */}
+            {Object.values(channel.state.members).some(member => 
+              member.user_id !== user?.id && isUserOnline(member.user_id)
+            ) && (
+              <View style={styles.onlineIndicator} />
+            )}
+          </TouchableOpacity>
         );
       }
 
@@ -90,12 +105,21 @@ export default function ChannelListItem({
       if (displayMembers.length === 1) {
         const member = displayMembers[0];
         return (
-          <ProfileImage
-            avatarUrl={member.user?.image as string}
-            fullName={(member.user?.name || member.user?.full_name) as string}
-            size={48}
-            showBorder={false}
-          />
+           <TouchableOpacity 
+             style={styles.avatarWithIndicator}
+             onPress={(event) => handleImagePress(member.user?.image as string || '', (member.user?.name || member.user?.full_name) as string || 'User', event)}
+             activeOpacity={0.7}
+           >
+            <ProfileImage
+              avatarUrl={member.user?.image as string}
+              fullName={(member.user?.name || member.user?.full_name) as string}
+              size={48}
+              showBorder={false}
+            />
+            {isUserOnline(member.user_id) && (
+              <View style={styles.onlineIndicator} />
+            )}
+          </TouchableOpacity>
         );
       }
 
@@ -134,12 +158,21 @@ export default function ChannelListItem({
     const otherMember = members.find(member => member.user_id !== user?.id);
     
     return (
-      <ProfileImage
-        avatarUrl={otherMember?.user?.image as string}
-        fullName={(otherMember?.user?.name || otherMember?.user?.full_name) as string}
-        size={48}
-        showBorder={false}
-      />
+       <TouchableOpacity 
+         style={styles.avatarWithIndicator}
+         onPress={(event) => handleImagePress(otherMember?.user?.image as string || '', (otherMember?.user?.name || otherMember?.user?.full_name) as string || 'User', event)}
+         activeOpacity={0.7}
+       >
+        <ProfileImage
+          avatarUrl={otherMember?.user?.image as string}
+          fullName={(otherMember?.user?.name || otherMember?.user?.full_name) as string}
+          size={48}
+          showBorder={false}
+        />
+        {otherMember && isUserOnline(otherMember.user_id) && (
+          <View style={styles.onlineIndicator} />
+        )}
+      </TouchableOpacity>
     );
   };
 
@@ -195,9 +228,101 @@ export default function ChannelListItem({
     return `${memberCount} members`;
   };
 
+  // Get unread message count
+  const getUnreadCount = (): number => {
+    // Stream Chat provides unread count in channel.state.unreadCount
+    // or we can calculate it from channel.state.read
+    if (channel.state.unreadCount !== undefined) {
+      return channel.state.unreadCount;
+    }
+    
+    // Fallback: calculate unread count from read receipts
+    if (user && channel.state.read) {
+      const userRead = channel.state.read[user.id];
+      if (userRead) {
+        const lastMessage = channel.state.messages[channel.state.messages.length - 1];
+        if (lastMessage && lastMessage.created_at > userRead.last_read) {
+          // Count messages after last read
+          return channel.state.messages.filter(
+            msg => msg.created_at > userRead.last_read && msg.user?.id !== user.id
+          ).length;
+        }
+      } else {
+        // User hasn't read any messages, count all messages from others
+        return channel.state.messages.filter(msg => msg.user?.id !== user.id).length;
+      }
+    }
+    
+    return 0;
+  };
+
+  // Check if user is online
+  const isUserOnline = (userId: string): boolean => {
+    // Stream Chat provides online status in channel.state.members
+    const member = channel.state.members[userId];
+    if (member && member.user) {
+      // Check if user is online (last_active_at is recent)
+      const lastActive = member.user.last_active_at;
+      if (lastActive && typeof lastActive === 'string') {
+        const now = new Date();
+        const lastActiveDate = new Date(lastActive);
+        const diffInMinutes = (now.getTime() - lastActiveDate.getTime()) / (1000 * 60);
+        // Consider online if last active within 5 minutes
+        return diffInMinutes <= 5;
+      }
+    }
+    return false;
+  };
+
+  // Format timestamp based on date
+  const formatTimestamp = (timestamp: string | Date | undefined): string => {
+    if (!timestamp) return '';
+    
+    const messageDate = new Date(timestamp);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const messageDay = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
+    
+    // If message was sent today, show time
+    if (messageDay.getTime() === today.getTime()) {
+      return messageDate.toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+    }
+    
+    // If message was sent yesterday, show "Yesterday"
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (messageDay.getTime() === yesterday.getTime()) {
+      return 'Yesterday';
+    }
+    
+    // For older messages, show date
+    return messageDate.toLocaleDateString();
+  };
+
   const handlePress = () => {
     router.push(`/(home)/channel/${channel.cid}`);
   };
+
+  const handleImagePress = (imageUrl: string, imageName: string, event?: any) => {
+    if (event) {
+      event.stopPropagation();
+    }
+    // Always open modal, ProfileImage will handle placeholder internally
+    setSelectedImageUrl(imageUrl || '');
+    setSelectedImageName(imageName || '');
+    setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setSelectedImageUrl('');
+    setSelectedImageName('');
+  };
+
 
   return (
     <TouchableOpacity
@@ -222,21 +347,25 @@ export default function ChannelListItem({
               </View>
             )}
             <Text style={styles.timestamp}>
-              {channel.state.last_message_at 
-                ? new Date(channel.state.last_message_at).toLocaleDateString()
-                : channel.data?.updated_at 
-                ? new Date(channel.data.updated_at as string).toLocaleDateString()
-                : ''
-              }
+              {formatTimestamp(channel.state.last_message_at || (channel.data?.updated_at as string))}
             </Text>
           </View>
         </View>
         
         <View style={styles.messageRow}>
           <View style={styles.messageContainer}>
-            <Text style={styles.lastMessage} numberOfLines={1}>
-              {getLastMessage()}
-            </Text>
+            <View style={styles.messageWithBadge}>
+              <Text style={styles.lastMessage} numberOfLines={1}>
+                {getLastMessage()}
+              </Text>
+              {!isSearchResult && getUnreadCount() > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>
+                    {getUnreadCount() > 99 ? '99+' : getUnreadCount()}
+                  </Text>
+                </View>
+              )}
+            </View>
             {isSearchResult && getMatchingMessageText() && (
               <Text style={styles.matchCount}>
                 {getMatchingMessageText()?.matchCount} match{getMatchingMessageText()?.matchCount !== 1 ? 'es' : ''}
@@ -250,6 +379,40 @@ export default function ChannelListItem({
           )}
         </View>
       </View>
+      
+      {/* Image Modal */}
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeModal}
+      >
+        <View style={styles.modalOverlay}>
+          <StatusBar backgroundColor="rgba(0,0,0,0.9)" barStyle="light-content" />
+          <TouchableOpacity 
+            style={styles.modalCloseArea} 
+            activeOpacity={1} 
+            onPress={closeModal}
+          >
+            <View style={styles.modalContent}>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={closeModal}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={30} color="white" />
+              </TouchableOpacity>
+              
+               <ProfileImage
+                 avatarUrl={selectedImageUrl}
+                 fullName={selectedImageName}
+                 size={300}
+                 showBorder={false}
+               />
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </TouchableOpacity>
   );
 }
@@ -315,9 +478,30 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  messageWithBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
   lastMessage: {
     fontSize: 14,
     color: '#666',
+    flex: 1,
+    marginRight: 8,
+  },
+  unreadBadge: {
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
   matchCount: {
     fontSize: 12,
@@ -358,5 +542,50 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 10,
     fontWeight: 'bold',
+  },
+  avatarWithIndicator: {
+    position: 'relative',
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#34C759',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseArea: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { ChannelList } from 'stream-chat-expo';
 import { useAuth } from '../../../providers/AuthProvider';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import NewChatButton from '../../../components/NewChatButton';
 import ChannelListItem from '../../../components/ChannelListItem';
 import UserListItem from '../../../components/UserListItem';
@@ -177,7 +178,7 @@ export default function MainTabScreen() {
         }}
       />
       {showSearch ? (
-        <View style={styles.searchContainer}>
+        <SafeAreaView style={styles.searchContainer} edges={['bottom']}>
           {/* Search Input */}
           <View style={styles.searchInputContainer}>
             <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
@@ -249,13 +250,18 @@ export default function MainTabScreen() {
               )}
             />
           ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="search" size={48} color="#ccc" />
-              <Text style={styles.emptyText}>Search for {activeTab}</Text>
-              <Text style={styles.emptySubtext}>Type to find what you're looking for</Text>
-            </View>
+            // Show normal chat list when search is active but no query is entered
+            <>
+              <ChannelList
+                key={refreshKey}
+                filters={{ members: { $in: [user.id] } }}
+                Preview={ChannelListItem}
+                sort={{ updated_at: -1 }}
+              />
+              <NewChatButton />
+            </>
           )}
-        </View>
+        </SafeAreaView>
       ) : (
         <>
           <ChannelList
