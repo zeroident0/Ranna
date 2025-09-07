@@ -20,10 +20,18 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
         isInternetReachable: true,
     });
 
+    console.log('🌐 NetworkProvider: Initializing network provider');
+
     const updateNetworkState = useCallback((state: any) => {
         const isConnected = state.isConnected;
         const isInternetReachable = state.isInternetReachable;
         const isOnline = isConnected && isInternetReachable;
+
+        console.log('🌐 NetworkProvider: Network state updated:', {
+            isConnected,
+            isInternetReachable,
+            isOnline
+        });
 
         setNetworkState({
             isOnline,
@@ -52,7 +60,7 @@ export function NetworkProvider({ children }: NetworkProviderProps) {
 export function useNetwork() {
     const context = useContext(NetworkContext);
     if (context === undefined) {
-        throw new Error('useNetwork must be used within a NetworkProvider');
+        throw new Error('useNetwork must be used within a NetworkProvider. Make sure NetworkProvider is wrapped around your component tree.');
     }
     return context;
 }

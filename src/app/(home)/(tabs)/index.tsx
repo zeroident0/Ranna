@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { ChannelList } from 'stream-chat-expo';
 import { useAuth } from '../../../providers/AuthProvider';
+import { useNetwork } from '../../../providers/NetworkProvider';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import NewChatButton from '../../../components/NewChatButton';
@@ -16,12 +17,13 @@ import { supabase } from '../../../lib/supabase';
 export default function MainTabScreen() {
   const { user } = useAuth();
   const { client } = useChatContext();
-  const [refreshKey, setRefreshKey] = useState(0);
+  const { isOnline } = useNetwork();
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [activeTab, setActiveTab] = useState<'chats' | 'users'>('chats');
+  const [channelListError, setChannelListError] = useState<string | null>(null);
   
   if (!user) {
     return (
@@ -35,23 +37,29 @@ export default function MainTabScreen() {
   const refreshChannelList = async () => {
     console.log('Manually refreshing channel list...');
     try {
-      // Query channels to see what's available
-      const channels = await client.queryChannels({ 
-        members: { $in: [user.id] } 
-      });
-      console.log('Found channels:', channels.length);
-      channels.forEach(channel => {
-        console.log(`- ${channel.cid}: ${channel.data?.name || 'No name'} (${Object.keys(channel.state.members).length} members)`);
-      });
-      setRefreshKey(prev => prev + 1);
+      if (!isOnline) {
+        setChannelListError('No internet connection');
+        return;
+      }
+      
+      setChannelListError(null);
+      // Stream Chat will automatically update the channel list when data changes
+      // No need to force refresh unless there's a specific error
     } catch (error) {
       console.error('Error refreshing channels:', error);
+      setChannelListError('Failed to load chat list. Please try again.');
     }
   };
 
   // Search function
   const performSearch = async (query: string) => {
     if (!query.trim() || !user) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    if (!isOnline) {
       setSearchResults([]);
       setIsSearching(false);
       return;
@@ -144,14 +152,24 @@ export default function MainTabScreen() {
     setIsSearching(false);
   };
 
-  // Refresh channel list when screen comes into focus
+  // Handle network status changes for smart refreshing
+  useEffect(() => {
+    if (isOnline && channelListError) {
+      console.log('Network came back online, refreshing channel list');
+      refreshChannelList();
+    }
+  }, [isOnline]);
+
+  // Only refresh channel list when needed (network reconnection, not on tab focus)
   useFocusEffect(
     useCallback(() => {
-      console.log('MainTabScreen focused - refreshing channel list');
-      // Force refresh by updating the key
-      setRefreshKey(prev => prev + 1);
-      refreshChannelList();
-    }, [])
+      console.log('MainTabScreen focused - checking if refresh needed');
+      // Only refresh if there was a previous error or if we're coming back online
+      if (channelListError && isOnline) {
+        console.log('Refreshing channel list due to previous error and network available');
+        refreshChannelList();
+      }
+    }, [channelListError, isOnline])
   );
 
   return (
@@ -252,24 +270,50 @@ export default function MainTabScreen() {
           ) : (
             // Show normal chat list when search is active but no query is entered
             <>
-              <ChannelList
-                key={refreshKey}
-                filters={{ members: { $in: [user.id] } }}
-                Preview={ChannelListItem}
-                sort={{ updated_at: -1 }}
-              />
+              {channelListError ? (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="wifi-outline" size={48} color="#ccc" />
+                  <Text style={styles.errorText}>{channelListError}</Text>
+                  <TouchableOpacity 
+                    style={styles.retryButton}
+                    onPress={refreshChannelList}
+                  >
+                    <Text style={styles.retryButtonText}>Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <ChannelList
+                  filters={{ members: { $in: [user.id] } }}
+                  Preview={ChannelListItem}
+                  sort={{ updated_at: -1 }}
+                  options={{ limit: 20 }}
+                />
+              )}
               <NewChatButton />
             </>
           )}
         </SafeAreaView>
       ) : (
         <>
-          <ChannelList
-            key={refreshKey}
-            filters={{ members: { $in: [user.id] } }}
-            Preview={ChannelListItem}
-            sort={{ updated_at: -1 }}
-          />
+          {channelListError ? (
+            <View style={styles.errorContainer}>
+              <Ionicons name="wifi-outline" size={48} color="#ccc" />
+              <Text style={styles.errorText}>{channelListError}</Text>
+              <TouchableOpacity 
+                style={styles.retryButton}
+                onPress={refreshChannelList}
+              >
+                <Text style={styles.retryButtonText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <ChannelList
+              filters={{ members: { $in: [user.id] } }}
+              Preview={ChannelListItem}
+              sort={{ updated_at: -1 }}
+              options={{ limit: 20 }}
+            />
+          )}
           <NewChatButton />
         </>
       )}
@@ -382,5 +426,30 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 8,
     textAlign: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

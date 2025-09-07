@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Dimensions, StatusBar } from 'react-native';
 import { Channel as ChannelType } from 'stream-chat';
 import { useAuth } from '../providers/AuthProvider';
 import ProfileImage from './ProfileImage';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
+import { usePresence } from '../hooks/usePresence';
+import { formatTimestamp } from '../utils/formatTimestamp';
 
 interface ChannelListItemProps {
   channel: ChannelType;
@@ -13,13 +15,14 @@ interface ChannelListItemProps {
   isSearchResult?: boolean;
 }
 
-export default function ChannelListItem({ 
+const ChannelListItem = memo(function ChannelListItem({ 
   channel, 
   matchingMessages, 
   searchQuery, 
   isSearchResult = false 
 }: ChannelListItemProps) {
   const { user } = useAuth();
+  const { isUserOnline, updatePresence } = usePresence();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string>('');
   const [selectedImageName, setSelectedImageName] = useState<string>('');
@@ -184,7 +187,6 @@ export default function ChannelListItem({
 
     // Get the most recent matching message
     const mostRecentMatch = matchingMessages[matchingMessages.length - 1];
-    const senderName = mostRecentMatch.user?.name || mostRecentMatch.user?.full_name || 'Someone';
     const messageText = mostRecentMatch.text || 'Sent an attachment';
     
     // Highlight the search query in the message text
@@ -194,9 +196,20 @@ export default function ChannelListItem({
       return text.replace(regex, '**$1**');
     };
 
+    // Only show username prefix if it's the current user's message
+    if (mostRecentMatch.user?.id === user?.id) {
+      const senderName = mostRecentMatch.user?.name || mostRecentMatch.user?.full_name || 'You';
+      return {
+        text: `${senderName}: ${messageText}`,
+        highlightedText: `${senderName}: ${highlightText(messageText, searchQuery || '')}`,
+        matchCount: matchingMessages.length
+      };
+    }
+    
+    // For other users' messages, just show the message without username
     return {
-      text: `${senderName}: ${messageText}`,
-      highlightedText: `${senderName}: ${highlightText(messageText, searchQuery || '')}`,
+      text: messageText,
+      highlightedText: highlightText(messageText, searchQuery || ''),
       matchCount: matchingMessages.length
     };
   };
@@ -215,10 +228,16 @@ export default function ChannelListItem({
     const lastMessage = channel.state.messages[channel.state.messages.length - 1];
     if (!lastMessage) return 'No messages yet';
     
-    const senderName = lastMessage.user?.name || lastMessage.user?.full_name || 'Someone';
     const messageText = lastMessage.text || 'Sent an attachment';
     
-    return `${senderName}: ${messageText}`;
+    // Only show username prefix if it's the current user's message
+    if (lastMessage.user?.id === user?.id) {
+      const senderName = lastMessage.user?.name || lastMessage.user?.full_name || 'You';
+      return `${senderName}: ${messageText}`;
+    }
+    
+    // For other users' messages, just show the message without username
+    return messageText;
   };
 
   // Get member count for group chats
@@ -256,52 +275,23 @@ export default function ChannelListItem({
     return 0;
   };
 
-  // Check if user is online
-  const isUserOnline = (userId: string): boolean => {
-    // Stream Chat provides online status in channel.state.members
-    const member = channel.state.members[userId];
-    if (member && member.user) {
-      // Check if user is online (last_active_at is recent)
-      const lastActive = member.user.last_active_at;
-      if (lastActive && typeof lastActive === 'string') {
-        const now = new Date();
-        const lastActiveDate = new Date(lastActive);
-        const diffInMinutes = (now.getTime() - lastActiveDate.getTime()) / (1000 * 60);
-        // Consider online if last active within 5 minutes
-        return diffInMinutes <= 5;
-      }
-    }
-    return false;
-  };
-
-  // Format timestamp based on date
-  const formatTimestamp = (timestamp: string | Date | undefined): string => {
-    if (!timestamp) return '';
-    
-    const messageDate = new Date(timestamp);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const messageDay = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
-    
-    // If message was sent today, show time
-    if (messageDay.getTime() === today.getTime()) {
-      return messageDate.toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
+  // Update presence data for channel members (throttled)
+  useEffect(() => {
+    try {
+      const members = Object.values(channel.state.members);
+      const otherMembers = members.filter(member => member.user_id !== user?.id);
+      
+      // Only update presence for members we haven't checked recently
+      // The usePresence hook will handle rate limiting internally
+      otherMembers.forEach(member => {
+        updatePresence(member.user_id);
       });
+    } catch (error) {
+      console.log('ChannelListItem: Error updating presence:', error);
+      // Don't crash the component if presence update fails
     }
-    
-    // If message was sent yesterday, show "Yesterday"
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (messageDay.getTime() === yesterday.getTime()) {
-      return 'Yesterday';
-    }
-    
-    // For older messages, show date
-    return messageDate.toLocaleDateString();
-  };
+  }, [channel.state.members, user?.id, updatePresence]);
+
 
   const handlePress = () => {
     router.push(`/(home)/channel/${channel.cid}`);
@@ -415,7 +405,9 @@ export default function ChannelListItem({
       </Modal>
     </TouchableOpacity>
   );
-}
+});
+
+export default ChannelListItem;
 
 const styles = StyleSheet.create({
   container: {
