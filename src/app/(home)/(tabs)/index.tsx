@@ -29,12 +29,8 @@ export default function MainTabScreen() {
   
   // Helper function to determine if a channel is a group chat
   const isGroupChat = (channel: ChannelType) => {
-    const memberCount = Object.keys(channel.state.members).length;
-    // Check if it has a name (groups have names, 1-on-1 chats don't) or has more than 2 members
-    return (
-      (channel.data?.name && memberCount >= 2) || // If it has a name and at least 2 members, it's a group
-      memberCount > 2 // More than 2 members is definitely a group
-    );
+    // Groups are identified by having a name (1-on-1 chats don't have names)
+    return !!channel.data?.name;
   };
 
   // Create filter based on channel type selection
@@ -45,16 +41,16 @@ export default function MainTabScreen() {
 
     switch (channelFilter) {
       case 'chats':
-        // Direct chats: channels with exactly 2 members (1-on-1)
+        // Direct chats: channels without a name (1-on-1 chats don't have names)
         return {
           ...baseFilter,
-          member_count: { $eq: 2 }
+          name: { $exists: false }
         };
       case 'groups':
-        // Group chats: channels with more than 2 members
+        // Group chats: channels with a name (groups have names)
         return {
           ...baseFilter,
-          member_count: { $gt: 2 }
+          name: { $exists: true }
         };
       case 'all':
       default:

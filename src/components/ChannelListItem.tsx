@@ -1,3 +1,4 @@
+// ________________________________________IMPORTS________________________________________
 import React, { useState, useEffect, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Dimensions, StatusBar } from 'react-native';
 import { Channel as ChannelType } from 'stream-chat';
@@ -8,6 +9,7 @@ import { router } from 'expo-router';
 import { usePresence } from '../hooks/usePresence';
 import { formatTimestamp } from '../utils/formatTimestamp';
 
+// ________________________________________INTERFACES________________________________________
 interface ChannelListItemProps {
   channel: ChannelType;
   matchingMessages?: any[];
@@ -15,6 +17,7 @@ interface ChannelListItemProps {
   isSearchResult?: boolean;
 }
 
+// ________________________________________MAIN COMPONENT________________________________________
 const ChannelListItem = memo(function ChannelListItem({ 
   channel, 
   matchingMessages, 
@@ -27,14 +30,11 @@ const ChannelListItem = memo(function ChannelListItem({
   const [selectedImageUrl, setSelectedImageUrl] = useState<string>('');
   const [selectedImageName, setSelectedImageName] = useState<string>('');
 
+  // ________________________________________HELPER FUNCTIONS________________________________________
   // Determine if this is a group chat
   const isGroupChat = () => {
-    const memberCount = Object.keys(channel.state.members).length;
-    // Check if it has a name (groups have names, 1-on-1 chats don't) or has more than 2 members
-    return (
-      (channel.data?.name && memberCount >= 2) || // If it has a name and at least 2 members, it's a group
-      memberCount > 2 // More than 2 members is definitely a group
-    );
+    // Groups are identified by having a name (1-on-1 chats don't have names)
+    return !!channel.data?.name;
   };
 
   // Get channel name
@@ -92,67 +92,27 @@ const ChannelListItem = memo(function ChannelListItem({
         );
       }
 
-      // Fallback to member avatars if no group image
-      const members = Object.values(channel.state.members);
-      const otherMembers = members.filter(member => member.user_id !== user?.id);
-      const displayMembers = otherMembers.slice(0, 3);
-
-      if (displayMembers.length === 0) {
-        return (
-          <View style={styles.groupAvatarPlaceholder}>
-            <Ionicons name="people" size={20} color="#666" />
-          </View>
-        );
-      }
-
-      if (displayMembers.length === 1) {
-        const member = displayMembers[0];
-        return (
-           <TouchableOpacity 
-             style={styles.avatarWithIndicator}
-             onPress={(event) => handleImagePress(member.user?.image as string || '', (member.user?.name || member.user?.full_name) as string || 'User', event)}
-             activeOpacity={0.7}
-           >
-            <ProfileImage
-              avatarUrl={member.user?.image as string}
-              fullName={(member.user?.name || member.user?.full_name) as string}
-              size={48}
-              showBorder={false}
-            />
-            {isUserOnline(member.user_id) && (
-              <View style={styles.onlineIndicator} />
-            )}
-          </TouchableOpacity>
-        );
-      }
-
-      // Multiple members - show overlapping avatars
+      // Fallback to group's first letter if no group image
+      const groupName = getChannelName();
       return (
-        <View style={styles.groupAvatarContainer}>
-          {displayMembers.slice(0, 2).map((member, index) => (
-            <View
-              key={member.user_id}
-              style={[
-                styles.groupAvatarOverlap,
-                { left: index * 16, zIndex: 2 - index }
-              ]}
-            >
-              <ProfileImage
-                avatarUrl={member.user?.image as string}
-                fullName={(member.user?.name || member.user?.full_name) as string}
-                size={32}
-                showBorder={false}
-              />
-            </View>
-          ))}
-          {otherMembers.length > 2 && (
-            <View style={[styles.groupAvatarOverlap, styles.moreMembersBadge, { left: 32 }]}>
-              <Text style={styles.moreMembersText}>
-                +{otherMembers.length - 2}
-              </Text>
-            </View>
+        <TouchableOpacity 
+          style={styles.avatarWithIndicator}
+          onPress={(event) => handleImagePress('', groupName, event)}
+          activeOpacity={0.7}
+        >
+          <ProfileImage
+            avatarUrl={null}
+            fullName={groupName}
+            size={48}
+            showBorder={false}
+          />
+          {/* For groups, show online indicator if any member is online */}
+          {Object.values(channel.state.members).some(member => 
+            member.user_id !== user?.id && isUserOnline(member.user_id)
+          ) && (
+            <View style={styles.onlineIndicator} />
           )}
-        </View>
+        </TouchableOpacity>
       );
     }
 
@@ -179,6 +139,7 @@ const ChannelListItem = memo(function ChannelListItem({
     );
   };
 
+  // ________________________________________MESSAGE DISPLAY FUNCTIONS________________________________________
   // Get matching message text for search results
   const getMatchingMessageText = () => {
     if (!isSearchResult || !matchingMessages || matchingMessages.length === 0) {
@@ -187,7 +148,10 @@ const ChannelListItem = memo(function ChannelListItem({
 
     // Get the most recent matching message
     const mostRecentMatch = matchingMessages[matchingMessages.length - 1];
-    const messageText = mostRecentMatch.text || 'Sent an attachment';
+    
+    // Check if message has attachments
+    const attachmentText = getAttachmentDisplayText(mostRecentMatch);
+    const messageText = mostRecentMatch.text || attachmentText || 'Sent an attachment';
     
     // Highlight the search query in the message text
     const highlightText = (text: string, query: string) => {
@@ -196,22 +160,71 @@ const ChannelListItem = memo(function ChannelListItem({
       return text.replace(regex, '**$1**');
     };
 
-    // Only show username prefix if it's the current user's message
+    // For current user's messages, just show the message text (read receipts shown separately)
     if (mostRecentMatch.user?.id === user?.id) {
-      const senderName = mostRecentMatch.user?.name || mostRecentMatch.user?.full_name || 'You';
       return {
-        text: `${senderName}: ${messageText}`,
-        highlightedText: `${senderName}: ${highlightText(messageText, searchQuery || '')}`,
+        text: messageText,
+        highlightedText: highlightText(messageText, searchQuery || ''),
         matchCount: matchingMessages.length
       };
     }
     
-    // For other users' messages, just show the message without username
+    // For group chats, show sender username with message
+    if (isGroupChat()) {
+      const senderName = mostRecentMatch.user?.name || mostRecentMatch.user?.full_name || 'Unknown';
+      const fullMessageText = `${senderName}: ${messageText}`;
+      return {
+        text: fullMessageText,
+        highlightedText: highlightText(fullMessageText, searchQuery || ''),
+        matchCount: matchingMessages.length
+      };
+    }
+    
+    // For 1-on-1 chats, just show the message without username
     return {
       text: messageText,
       highlightedText: highlightText(messageText, searchQuery || ''),
       matchCount: matchingMessages.length
     };
+  };
+
+  // Get attachment display text with appropriate icon
+  const getAttachmentDisplayText = (message: any) => {
+    if (!message.attachments || message.attachments.length === 0) {
+      return null;
+    }
+
+    const attachment = message.attachments[0]; // Get first attachment
+    
+    // Check for image
+    if (attachment.type === 'image' || attachment.image_url) {
+      return 'Image';
+    }
+    
+    // Check for video
+    if (attachment.type === 'video' || attachment.asset_url?.includes('video') || attachment.mime_type?.startsWith('video/')) {
+      return 'Video';
+    }
+    
+    // Check for audio/recording
+    if (attachment.type === 'audio' || attachment.asset_url?.includes('audio') || attachment.mime_type?.startsWith('audio/')) {
+      // Try to get duration if available
+      const duration = attachment.duration || attachment.file_size; // Some APIs provide duration
+      if (duration && typeof duration === 'number') {
+        const minutes = Math.floor(duration / 60);
+        const seconds = Math.floor(duration % 60);
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      }
+      return '';
+    }
+    
+    // Check for file
+    if (attachment.type === 'file' || attachment.asset_url) {
+      return 'File';
+    }
+    
+    // Default fallback
+    return 'Attachment';
   };
 
   // Get last message preview
@@ -230,16 +243,55 @@ const ChannelListItem = memo(function ChannelListItem({
       return 'No messages yet';
     }
     
-    const messageText = lastMessage.text || 'Sent an attachment';
+    // Check if message has attachments
+    const attachmentText = getAttachmentDisplayText(lastMessage);
+    const messageText = lastMessage.text || attachmentText || 'Sent an attachment';
     
-    // Only show username prefix if it's the current user's message
+    // For current user's messages, just show the message text (read receipts shown separately)
     if (lastMessage.user?.id === user?.id) {
-      const senderName = lastMessage.user?.name || lastMessage.user?.full_name || 'You';
+      return messageText;
+    }
+    
+    // For group chats, show sender username with message
+    if (isGroupChat()) {
+      const senderName = lastMessage.user?.name || lastMessage.user?.full_name || 'Unknown';
       return `${senderName}: ${messageText}`;
     }
     
-    // For other users' messages, just show the message without username
+    // For 1-on-1 chats, just show the message without username
     return messageText;
+  };
+
+  // Get attachment icon name for the last message
+  const getAttachmentIconName = () => {
+    const lastMessage = channel.state.messages[channel.state.messages.length - 1];
+    if (!lastMessage || !lastMessage.attachments?.[0]) return null;
+    
+    const attachment = lastMessage.attachments[0];
+    if (attachment.type === 'image' || attachment.image_url) {
+      return 'image';
+    } else if (attachment.type === 'video' || attachment.asset_url?.includes('video') || attachment.mime_type?.startsWith('video/')) {
+      return 'videocam';
+    } else if (attachment.type === 'audio' || attachment.asset_url?.includes('audio') || attachment.mime_type?.startsWith('audio/')) {
+      return 'mic';
+    } else {
+      return 'document';
+    }
+  };
+
+  // ________________________________________READ RECEIPT FUNCTIONS________________________________________
+  // Get read receipt info for rendering
+  const getReadReceiptInfo = (message: any) => {
+    if (!message || message.user?.id !== user?.id) {
+      return null;
+    }
+    
+    const readStatus = getReadReceiptStatus(message);
+    return {
+      read: readStatus.read,
+      delivered: readStatus.delivered,
+      sent: !readStatus.delivered
+    };
   };
 
   // Get member count for group chats
@@ -247,6 +299,35 @@ const ChannelListItem = memo(function ChannelListItem({
     if (!isGroupChat()) return null;
     const memberCount = Object.keys(channel.state.members).length;
     return `${memberCount} members`;
+  };
+
+  // Get read receipt status for a message
+  const getReadReceiptStatus = (message: any): { delivered: boolean; read: boolean; readBy: string[] } => {
+    if (!message || !user) {
+      return { delivered: false, read: false, readBy: [] };
+    }
+
+    // Get all members except the sender
+    const members = Object.values(channel.state.members);
+    const otherMembers = members.filter(member => member.user_id !== message.user?.id);
+    
+    // Check if message is delivered (exists in channel)
+    const delivered = true; // If message exists, it's delivered
+    
+    // Check who has read the message
+    const readBy: string[] = [];
+    if (channel.state.read) {
+      otherMembers.forEach(member => {
+        const memberRead = channel.state.read[member.user_id];
+        if (memberRead && memberRead.last_read >= message.created_at) {
+          readBy.push(member.user_id);
+        }
+      });
+    }
+    
+    const read = readBy.length === otherMembers.length && otherMembers.length > 0;
+    
+    return { delivered, read, readBy };
   };
 
   // Get unread message count
@@ -277,6 +358,7 @@ const ChannelListItem = memo(function ChannelListItem({
     return 0;
   };
 
+  // ________________________________________EFFECTS________________________________________
   // Update presence data for channel members (throttled)
   useEffect(() => {
     try {
@@ -295,6 +377,7 @@ const ChannelListItem = memo(function ChannelListItem({
   }, [channel.state.members, user?.id, updatePresence]);
 
 
+  // ________________________________________EVENT HANDLERS________________________________________
   const handlePress = () => {
     router.push(`/(home)/channel/${channel.cid}`);
   };
@@ -316,6 +399,7 @@ const ChannelListItem = memo(function ChannelListItem({
   };
 
 
+  // ________________________________________RENDER________________________________________
   return (
     <TouchableOpacity
       style={styles.container}
@@ -347,9 +431,100 @@ const ChannelListItem = memo(function ChannelListItem({
         <View style={styles.messageRow}>
           <View style={styles.messageContainer}>
             <View style={styles.messageWithBadge}>
-              <Text style={styles.lastMessage} numberOfLines={1}>
-                {getLastMessage()}
-              </Text>
+              <View style={styles.messageAndReceipt}>
+                {(() => {
+                  const lastMessage = channel.state.messages[channel.state.messages.length - 1];
+                  const receiptInfo = getReadReceiptInfo(lastMessage);
+                  
+                  if (receiptInfo && !isSearchResult) {
+                    return (
+                      <View style={styles.readReceiptContainer}>
+                        {receiptInfo.read ? (
+                          <Ionicons 
+                            name="checkmark-done" 
+                            size={16} 
+                            color="blue" 
+                            style={styles.readReceiptIcon}
+                          />
+                        ) : receiptInfo.delivered ? (
+                          <Ionicons 
+                            name="checkmark" 
+                            size={16} 
+                            color="#007AFF" 
+                            style={styles.readReceiptIcon}
+                          />
+                        ) : (
+                          <Ionicons 
+                            name="time" 
+                            size={16} 
+                            color="#8E8E93" 
+                            style={styles.readReceiptIcon}
+                          />
+                        )}
+                      </View>
+                    );
+                  }
+                  return null;
+                })()}
+                <View style={styles.messageWithIcon}>
+                  {(() => {
+                    const lastMessage = channel.state.messages[channel.state.messages.length - 1];
+                    if (!lastMessage) return null;
+                    
+                    const attachmentText = getAttachmentDisplayText(lastMessage);
+                    if (!attachmentText) return null;
+                    
+                    // For group chats, show icon after username
+                    if (isGroupChat() && lastMessage.user?.id !== user?.id) {
+                      const senderName = lastMessage.user?.name || lastMessage.user?.full_name || 'Unknown';
+                      const iconName = getAttachmentIconName();
+                      
+                      return (
+                        <>
+                          <Text style={styles.usernameText} numberOfLines={1}>
+                            {senderName as string}:
+                          </Text>
+                          <Ionicons 
+                            name={iconName as any} 
+                            size={14} 
+                            color="#666" 
+                            style={[styles.attachmentIcon, { marginLeft: 0 }]}
+                          />
+                          <Text style={styles.attachmentText} numberOfLines={1}>
+                            {attachmentText}
+                          </Text>
+                        </>
+                      );
+                    }
+                    
+                    // For other cases, show icon before message
+                    const iconName = getAttachmentIconName();
+                    return (
+                      <>
+                        <Ionicons 
+                          name={iconName as any} 
+                          size={14} 
+                          color="#666" 
+                          style={styles.attachmentIcon}
+                        />
+                        <Text style={styles.lastMessage} numberOfLines={1}>
+                          {getLastMessage()}
+                        </Text>
+                      </>
+                    );
+                  })()}
+                  {(() => {
+                    const lastMessage = channel.state.messages[channel.state.messages.length - 1];
+                    if (!lastMessage || lastMessage.attachments?.[0]) return null;
+                    
+                    return (
+                      <Text style={styles.lastMessage} numberOfLines={1}>
+                        {getLastMessage()}
+                      </Text>
+                    );
+                  })()}
+                </View>
+              </View>
               {!isSearchResult && getUnreadCount() > 0 && (
                 <View style={styles.unreadBadge}>
                   <Text style={styles.unreadBadgeText}>
@@ -411,6 +586,7 @@ const ChannelListItem = memo(function ChannelListItem({
 
 export default ChannelListItem;
 
+// ________________________________________STYLES________________________________________
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
@@ -477,6 +653,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  messageAndReceipt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
   lastMessage: {
     fontSize: 14,
     color: '#666',
@@ -506,36 +687,6 @@ const styles = StyleSheet.create({
   memberCount: {
     fontSize: 12,
     color: '#999',
-  },
-  groupAvatarContainer: {
-    width: 48,
-    height: 48,
-    position: 'relative',
-  },
-  groupAvatarOverlap: {
-    position: 'absolute',
-    top: 0,
-  },
-  groupAvatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  moreMembersBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  moreMembersText: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: 'bold',
   },
   avatarWithIndicator: {
     position: 'relative',
@@ -581,5 +732,31 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  readReceiptContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 4,
+  },
+  readReceiptIcon: {
+    marginRight: 2,
+  },
+  messageWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  attachmentIcon: {
+    marginRight: 4,
+    marginLeft: 2,
+  },
+  usernameText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  attachmentText: {
+    fontSize: 14,
+    color: '#666',
+    flex: 1,
   },
 });
