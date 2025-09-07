@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { StyleSheet, View, Alert, ScrollView, TouchableOpacity, Text } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Text } from 'react-native';
 import { Button, Input } from 'react-native-elements';
 import { Session } from '@supabase/supabase-js';
 import { useAuth } from '../../../providers/AuthProvider';
@@ -9,9 +9,12 @@ import { Ionicons } from '@expo/vector-icons';
 import SocialBadge, { SocialBadgeList } from '../../../components/SocialBadge';
 import { AddLinkButtons } from '../../../components/AddLinkButton';
 import { extractAllSocialMediaLinks, SocialMediaInfo } from '../../../utils/socialMediaDetector';
+import CustomAlert from '../../../components/CustomAlert';
+import { useCustomAlert } from '../../../hooks/useCustomAlert';
 
 export default function ProfileScreen() {
   const { session } = useAuth();
+  const { alertState, showSuccess, showError, showConfirm, hideAlert } = useCustomAlert();
 
   const [loading, setLoading] = useState(true);
   const [fullName, setFullname] = useState('');
@@ -79,7 +82,7 @@ export default function ProfileScreen() {
     } catch (error) {
       console.log('❌ Profile: Error in getProfile:', error);
       if (error instanceof Error) {
-        Alert.alert('Error', `Failed to load profile: ${error.message}`);
+        showError('Error', `Failed to load profile: ${error.message}`);
       }
     } finally {
       setLoading(false);
@@ -117,10 +120,10 @@ export default function ProfileScreen() {
       }
       
       // Show success message
-      Alert.alert('Success', 'Profile updated successfully!');
+      showSuccess('Success', 'Profile updated successfully!');
     } catch (error) {
       if (error instanceof Error) {
-        Alert.alert('Error', `Failed to update profile: ${error.message}`);
+        showError('Error', `Failed to update profile: ${error.message}`);
       }
     } finally {
       setLoading(false);
@@ -150,21 +153,13 @@ export default function ProfileScreen() {
   };
 
   const handleSignOut = () => {
-    Alert.alert(
+    showConfirm(
       'Sign Out',
       'Are you sure you want to sign out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: () => supabase.auth.signOut(),
-        },
-      ],
-      { cancelable: true }
+      () => supabase.auth.signOut(),
+      undefined,
+      'Sign Out',
+      'Cancel'
     );
   };
 
@@ -196,22 +191,23 @@ export default function ProfileScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={{ alignItems: 'center' }}>
-        <Avatar
-          size={200}
-          url={avatarUrl}
-          onUpload={(url: string) => {
-            setAvatarUrl(url);
-            updateProfile({
-              website,
-              avatar_url: url,
-              full_name: fullName,
-              bio,
-            });
-          }}
-        />
-      </View>
+    <>
+      <ScrollView style={styles.container}>
+        <View style={{ alignItems: 'center' }}>
+          <Avatar
+            size={200}
+            url={avatarUrl}
+            onUpload={(url: string) => {
+              setAvatarUrl(url);
+              updateProfile({
+                website,
+                avatar_url: url,
+                full_name: fullName,
+                bio,
+              });
+            }}
+          />
+        </View>
 
       {/* Social Media Badges */}
       {socialLinks.length > 0 && (
@@ -295,6 +291,26 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+
+    {/* Custom Alert */}
+    <CustomAlert
+      visible={alertState.visible}
+      title={alertState.options.title}
+      message={alertState.options.message}
+      type={alertState.options.type}
+      buttons={alertState.options.buttons}
+      onDismiss={hideAlert}
+      showCloseButton={alertState.options.showCloseButton}
+      icon={alertState.options.icon}
+      customIcon={alertState.options.customIcon}
+      animationType={alertState.options.animationType}
+      backgroundColor={alertState.options.backgroundColor}
+      overlayColor={alertState.options.overlayColor}
+      borderRadius={alertState.options.borderRadius}
+      maxWidth={alertState.options.maxWidth}
+      showIcon={alertState.options.showIcon}
+    />
+  </>
   );
 }
 
