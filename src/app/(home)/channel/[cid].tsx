@@ -431,12 +431,26 @@ export default function ChannelScreen() {
       user_id: member.user_id,
     }));
 
-    // create a call using the channel members
+    // create an audio-only call using the channel members
     const call = videoClient.call('default', Crypto.randomUUID());
     await call.getOrCreate({
       ring: true,
       data: {
         members,
+        // Configure call as audio-only
+        settings_override: {
+          audio: {
+            default_device: 'speaker',
+            mic_default_on: true,
+          },
+          video: {
+            camera_default_on: false,
+            camera_facing: 'front',
+          },
+          screensharing: {
+            access_request_enabled: false,
+          },
+        },
       },
     });
 
@@ -531,9 +545,9 @@ export default function ChannelScreen() {
               >
                 <Ionicons name="ellipsis-vertical" size={24} color={themes.colors.text} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={joinCall}>
+              {/* <TouchableOpacity onPress={joinCall}>
                 <Ionicons name="call" size={24} color={themes.colors.text} />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
             </View>
           ),
           headerStyle: {

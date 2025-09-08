@@ -8,7 +8,7 @@ import {
 } from '@stream-io/video-react-native-sdk';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator } from 'react-native';
+import { ActivityIndicator, View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 
 export default function CallScreen() {
   const calls = useCalls();
@@ -43,7 +43,56 @@ export default function CallScreen() {
 
   return (
     <StreamCall call={call}>
-      <RingingCallContent />
+      <CallContent 
+        CallTopView={() => null}
+        CallBottomView={() => null}
+        CallControls={({ onHangupCall }) => (
+          <View style={styles.callControls}>
+            <TouchableOpacity 
+              onPress={onHangupCall}
+              style={styles.hangupButton}
+            >
+              <Text style={styles.hangupButtonText}>📞</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        enableScreenSharing={false}
+        enableVideo={false}
+        enableAudio={true}
+        enableParticipantVideo={false}
+        enableParticipantScreenSharing={false}
+      />
     </StreamCall>
   );
 }
+
+const styles = StyleSheet.create({
+  callControls: {
+    position: 'absolute',
+    bottom: 20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hangupButton: {
+    backgroundColor: '#ff4444',
+    borderRadius: 30,
+    width: 60,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  hangupButtonText: {
+    fontSize: 24,
+    color: 'white',
+  },
+});

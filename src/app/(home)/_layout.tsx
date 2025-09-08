@@ -32,7 +32,7 @@ export default function HomeLayout() {
             <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="users" options={{ title: 'Users' }} />
-              <Stack.Screen name="call" options={{ title: 'Call' }} />
+              <Stack.Screen name="call" options={{ title: 'Audio Call' }} />
               <Stack.Screen name="channel/[cid]" options={{ title: 'Channel' }} />
               <Stack.Screen 
                 name="user-profile/[userId]" 
