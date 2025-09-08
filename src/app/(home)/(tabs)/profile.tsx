@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Text } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Text, StatusBar } from 'react-native';
 import { Button, Input } from 'react-native-elements';
 import { Session } from '@supabase/supabase-js';
 import { useAuth } from '../../../providers/AuthProvider';
@@ -11,6 +11,7 @@ import { AddLinkButtons } from '../../../components/AddLinkButton';
 import { extractAllSocialMediaLinks, SocialMediaInfo } from '../../../utils/socialMediaDetector';
 import CustomAlert from '../../../components/CustomAlert';
 import { useCustomAlert } from '../../../hooks/useCustomAlert';
+import { themes } from '../../../constants/themes';
 
 export default function ProfileScreen() {
   const { session } = useAuth();
@@ -192,7 +193,8 @@ export default function ProfileScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container}>
+      <StatusBar backgroundColor={themes.colors.background} barStyle="light-content" />
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View style={{ alignItems: 'center' }}>
           <Avatar
             size={200}
@@ -202,6 +204,15 @@ export default function ProfileScreen() {
               updateProfile({
                 website,
                 avatar_url: url,
+                full_name: fullName,
+                bio,
+              });
+            }}
+            onDelete={() => {
+              setAvatarUrl('');
+              updateProfile({
+                website,
+                avatar_url: '',
                 full_name: fullName,
                 bio,
               });
@@ -234,16 +245,51 @@ export default function ProfileScreen() {
       )}
 
       <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Input label="Email" value={session?.user?.email} disabled />
-      </View>
-      <View style={styles.verticallySpaced}>
         <Input
           label="Full name"
           value={fullName || ''}
-          onChangeText={(text) => setFullname(text)}
+          onChangeText={(text) => {
+            setFullname(text);
+            updateProfile({
+              website,
+              avatar_url: avatarUrl,
+              full_name: text,
+              bio,
+            });
+          }}
+          inputStyle={styles.inputText}
+          labelStyle={styles.labelText}
         />
       </View>
       <View style={styles.verticallySpaced}>
+        <Input
+          label="Bio"
+          value={bio || ''}
+          onChangeText={(text) => {
+            setBio(text);
+            updateProfile({
+              website,
+              avatar_url: avatarUrl,
+              full_name: fullName,
+              bio: text,
+            });
+          }}
+          placeholder="Tell us about yourself..."
+          inputStyle={styles.inputText}
+          labelStyle={styles.labelText}
+          placeholderTextColor="#CCCCCC"
+        />
+      </View>
+      <View style={styles.verticallySpaced}>
+        <Input 
+          label="Email" 
+          value={session?.user?.email} 
+          disabled 
+          inputStyle={styles.inputText}
+          labelStyle={styles.labelText}
+        />
+      </View>
+      {/* <View style={styles.verticallySpaced}>
         <Input
           label="Add Social Links"
           value={websiteInput}
@@ -251,38 +297,13 @@ export default function ProfileScreen() {
           placeholder="Paste a social media link here..."
         />
         {/* Add buttons for detected social links */}
-        <AddLinkButtons
+        {/* <AddLinkButtons
           detectedLinks={extractAllSocialMediaLinks(websiteInput)}
           existingLinks={socialLinks}
           onAdd={handleAddSocialLink}
         />
-      </View>
-      <View style={styles.verticallySpaced}>
-        <Input
-          label="Bio"
-          value={bio || ''}
-          onChangeText={(text) => setBio(text)}
-          multiline
-          numberOfLines={4}
-          placeholder="Tell us about yourself..."
-          inputStyle={styles.bioInput}
-        />
-      </View>
+      </View> */}
 
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Button
-          title={loading ? 'Updating Profile...' : 'Update'}
-          onPress={() =>
-            updateProfile({
-              website,
-              avatar_url: avatarUrl,
-              full_name: fullName,
-              bio,
-            })
-          }
-          disabled={loading}
-        />
-      </View>
 
       <View style={[styles.verticallySpaced, styles.signOutContainer]}>
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
@@ -316,8 +337,13 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 40,
+    flex: 1,
+    backgroundColor: themes.colors.background,
+  },
+  scrollContent: {
+    paddingTop: 40,
     padding: 12,
+    minHeight: '100%',
   },
   verticallySpaced: {
     paddingTop: 4,
@@ -395,5 +421,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderWidth: 1,
     borderColor: '#FFE6E6',
+  },
+  inputText: {
+    color: themes.colors.text,
+  },
+  labelText: {
+    color: themes.colors.text,
   },
 });

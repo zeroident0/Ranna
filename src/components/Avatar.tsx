@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { StyleSheet, View, Alert, Button } from 'react-native';
+import { StyleSheet, View, Alert, TouchableOpacity } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import ProfileImage from './ProfileImage';
 
 interface Props {
   size: number;
   url: string | null;
   onUpload: (filePath: string) => void;
+  onDelete?: () => void;
 }
 
-export default function Avatar({ url, size = 150, onUpload }: Props) {
+export default function Avatar({ url, size = 150, onUpload, onDelete }: Props) {
   const [uploading, setUploading] = useState(false);
 
   async function uploadAvatar() {
@@ -65,8 +67,54 @@ export default function Avatar({ url, size = 150, onUpload }: Props) {
     }
   }
 
+  async function deleteAvatar() {
+    if (!url || !onDelete) return;
+    
+    Alert.alert(
+      'Delete Avatar',
+      'Are you sure you want to delete your avatar?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setUploading(true);
+              
+              // Extract the file path from the URL
+              const urlParts = url.split('/');
+              const fileName = urlParts[urlParts.length - 1];
+              
+              // Delete from storage
+              const { error } = await supabase.storage
+                .from('avatars')
+                .remove([fileName]);
+              
+              if (error) {
+                throw error;
+              }
+              
+              // Call the onDelete callback
+              onDelete();
+            } catch (error) {
+              if (error instanceof Error) {
+                Alert.alert('Error', error.message);
+              }
+            } finally {
+              setUploading(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   return (
-    <View>
+    <View style={styles.container}>
       <ProfileImage
         avatarUrl={url}
         fullName=""
@@ -75,19 +123,82 @@ export default function Avatar({ url, size = 150, onUpload }: Props) {
         borderColor="#007AFF"
         style={styles.avatar}
       />
-      <View>
-        <Button
-          title={uploading ? 'Uploading Avatar...' : 'Upload'}
-          onPress={uploadAvatar}
-          disabled={uploading}
+      <TouchableOpacity
+        style={styles.cameraButton}
+        onPress={uploadAvatar}
+        disabled={uploading}
+      >
+        <Ionicons 
+          name={uploading ? "hourglass" : "camera"} 
+          size={28} 
+          color="#fff" 
         />
-      </View>
+      </TouchableOpacity>
+      {url && onDelete && (
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={deleteAvatar}
+          disabled={uploading}
+        >
+          <Ionicons 
+            name="trash" 
+            size={20} 
+            color="#fff" 
+          />
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    position: 'relative',
+    alignSelf: 'center',
+  },
   avatar: {
     maxWidth: '100%',
+  },
+  cameraButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#007AFF',
+    borderRadius: 25,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  deleteButton: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    backgroundColor: '#FF4444',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });
