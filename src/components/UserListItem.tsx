@@ -24,7 +24,19 @@ const UserListItem = ({ user }) => {
       members: [me.id, user.id],
     });
     await channel.watch();
-    router.replace(`/(home)/channel/${channel.cid}`);
+    router.replace({
+      pathname: `/(home)/channel/${channel.cid}`,
+      params: { 
+        channelData: JSON.stringify({
+          cid: channel.cid,
+          data: channel.data,
+          state: {
+            members: channel.state.members,
+            messages: channel.state.messages
+          }
+        })
+      }
+    });
   };
 
   return (

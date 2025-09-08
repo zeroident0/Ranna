@@ -278,7 +278,19 @@ export default function MainTabScreen() {
             sort={{ updated_at: -1 }}
             options={{ limit: 20 }}
             onSelect={(channel) => {
-              router.push(`/(home)/channel/${channel.cid}`);
+              router.push({
+                pathname: `/(home)/channel/${channel.cid}`,
+                params: { 
+                  channelData: JSON.stringify({
+                    cid: channel.cid,
+                    data: channel.data,
+                    state: {
+                      members: channel.state.members,
+                      messages: channel.state.messages
+                    }
+                  })
+                }
+              });
             }}
             Preview={ChannelListItem}
             EmptyStateIndicator={() => (

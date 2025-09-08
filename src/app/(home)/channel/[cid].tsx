@@ -1,5 +1,5 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, memo } from 'react';
 import { ActivityIndicator, Text, View, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Channel as ChannelType } from 'stream-chat';
@@ -7,6 +7,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import ProfileImage from '../../../components/ProfileImage';
 import { supabase } from '../../../lib/supabase';
 import { themes } from '../../../constants/themes';
+
+// Simple cache for profile data to avoid repeated queries
+const profileCache = new Map<string, any>();
 
 import {
   Channel,
@@ -24,53 +27,86 @@ import CustomAlert from '../../../components/CustomAlert';
 export default function ChannelScreen() {
   const [channel, setChannel] = useState<ChannelType | null>(null);
   const [otherParticipantProfile, setOtherParticipantProfile] = useState<any>(null);
-  const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(false); // Start as false for faster initial render
   const [showDropdown, setShowDropdown] = useState(false);
-  const { cid } = useLocalSearchParams<{ cid: string }>();
+  const { cid, channelData } = useLocalSearchParams<{ cid: string; channelData?: string }>();
 
   const { client } = useChatContext();
   const videoClient = useStreamVideoClient();
   const { user } = useAuth();
   const { alertState, showSuccess, showError, showWarning, showInfo, showConfirm, hideAlert } = useCustomAlert();
 
-  // Determine if this is a group chat
+  // Parse channel data immediately for instant header rendering
+  const initialChannelData = useMemo(() => {
+    if (channelData) {
+      try {
+        return JSON.parse(channelData);
+      } catch (error) {
+        console.log('Error parsing initial channel data:', error);
+        return null;
+      }
+    }
+    return null;
+  }, [channelData]);
+
+  // Determine if this is a group chat (use initial data for instant header)
   const isGroupChat = useMemo(() => {
-    if (!channel) {
-      console.log('🔍 isGroupChat: No channel');
+    const channelToCheck = channel || initialChannelData;
+    if (!channelToCheck) {
       return false;
     }
     // Groups are identified by having a name (1-on-1 chats don't have names)
-    if (!channel.data?.name) {
-      console.log('🔍 isGroupChat: No channel name, treating as 1-on-1');
+    if (!channelToCheck.data?.name) {
       return false;
     }
     
     // If it has a name, it's a group regardless of member count
-    console.log('🔍 isGroupChat: Has channel name, treating as group');
     return true;
-  }, [channel]);
+  }, [channel, initialChannelData]);
 
   // Check if current user has left this group
   const hasUserLeft = useMemo(() => {
     if (!user || !isGroupChat) return false;
-    const leftMembers = channel?.data?.left_members as string[] || [];
+    const channelToCheck = channel || initialChannelData;
+    const leftMembers = channelToCheck?.data?.left_members as string[] || [];
     return leftMembers.includes(user.id);
-  }, [user, isGroupChat, channel]);
+  }, [user, isGroupChat, channel, initialChannelData]);
 
   useEffect(() => {
+    // Use passed channel data if available (instant), otherwise fetch
+    if (channelData) {
+      try {
+        const parsedChannelData = JSON.parse(channelData);
+        // Create a minimal channel object with the passed data
+        const channelObj = {
+          cid: parsedChannelData.cid,
+          data: parsedChannelData.data,
+          state: parsedChannelData.state
+        } as ChannelType;
+        setChannel(channelObj);
+        return;
+      } catch (error) {
+        console.log('Error parsing channel data:', error);
+      }
+    }
+
+    // Fallback: fetch channel if no data passed
     const fetchChannel = async () => {
-      const channels = await client.queryChannels({ cid });
-      setChannel(channels[0]);
+      try {
+        const channels = await client.queryChannels({ cid });
+        setChannel(channels[0]);
+      } catch (error) {
+        console.log('Error fetching channel:', error);
+      }
     };
 
     fetchChannel();
-  }, [cid]);
+  }, [cid, channelData]);
 
-  // Fetch other participant's profile from Supabase
+  // Fetch other participant's profile from Supabase (non-blocking)
   useEffect(() => {
     const fetchOtherParticipantProfile = async () => {
       if (!channel || !user) {
-        setIsProfileLoading(false);
         return;
       }
       
@@ -78,6 +114,18 @@ export default function ChannelScreen() {
       const otherMember = members.find(member => member.user_id !== user.id);
       
       if (otherMember?.user_id) {
+        // Check cache first
+        const cachedProfile = profileCache.get(otherMember.user_id);
+        if (cachedProfile) {
+          setOtherParticipantProfile(cachedProfile);
+          return;
+        }
+        
+        // Only fetch if we don't already have the profile data
+        if (!otherParticipantProfile) {
+          setIsProfileLoading(true);
+        }
+        
         try {
           const { data, error } = await supabase
             .from('profiles')
@@ -86,35 +134,40 @@ export default function ChannelScreen() {
             .single();
           
           if (!error && data) {
+            // Cache the result
+            profileCache.set(otherMember.user_id, data);
             setOtherParticipantProfile(data);
           }
         } catch (err) {
           console.log('Error fetching other participant profile:', err);
+        } finally {
+          setIsProfileLoading(false);
         }
       }
-      
-      setIsProfileLoading(false);
     };
 
-    fetchOtherParticipantProfile();
+    // Use setTimeout to make this non-blocking for initial render
+    const timeoutId = setTimeout(fetchOtherParticipantProfile, 0);
+    return () => clearTimeout(timeoutId);
   }, [channel, user]);
 
   const getChannelName = (): string => {
-    if (!channel || !user) return 'Channel';
+    const channelToCheck = channel || initialChannelData;
+    if (!channelToCheck || !user) return 'Channel';
     
     // For group chats, use the channel name or generate one
     if (isGroupChat) {
       let baseName = '';
-      if (channel.data?.name) {
-        baseName = channel.data.name;
+      if (channelToCheck.data?.name) {
+        baseName = channelToCheck.data.name;
       } else {
         // Generate a name from member names (exclude left members)
-        const leftMembers = channel.data?.left_members as string[] || [];
-        const members = Object.values(channel.state.members);
-        const activeOtherMembers = members.filter(member => 
+        const leftMembers = channelToCheck.data?.left_members as string[] || [];
+        const members = Object.values(channelToCheck.state?.members || {});
+        const activeOtherMembers = members.filter((member: any) => 
           member.user_id !== user.id && !leftMembers.includes(member.user_id)
         );
-        const memberNames = activeOtherMembers.map(member => 
+        const memberNames = activeOtherMembers.map((member: any) => 
           member.user?.name || member.user?.full_name || 'Unknown'
         );
         
@@ -134,56 +187,69 @@ export default function ChannelScreen() {
     }
     
     // For 1-on-1 chats, use the other participant's name
-    const members = Object.values(channel.state.members);
-    const otherMember = members.find(member => member.user_id !== user.id);
+    const members = Object.values(channelToCheck.state?.members || {});
+    const otherMember = members.find((member: any) => member.user_id !== user.id);
     
-    const userName = otherMember?.user?.name as string;
-    const userFullName = otherMember?.user?.full_name as string;
+    const userName = (otherMember as any)?.user?.name as string;
+    const userFullName = (otherMember as any)?.user?.full_name as string;
     
     return userName || userFullName || 'Channel';
   };
 
   const getOtherParticipantImage = (): string | null => {
-    // Use profile data from Supabase if available
+    const channelToCheck = channel || initialChannelData;
+    if (!channelToCheck || !user) return null;
+    
+    const members = Object.values(channelToCheck.state?.members || {});
+    const otherMember = members.find((member: any) => member.user_id !== user.id);
+    
+    // Use Stream Chat user data first (immediate availability)
+    const streamImage = (otherMember as any)?.user?.image as string;
+    if (streamImage) {
+      return streamImage;
+    }
+    
+    // Fallback to profile data from Supabase if available
     if (otherParticipantProfile?.avatar_url) {
       return otherParticipantProfile.avatar_url;
     }
     
-    // Fallback to Stream Chat user data
-    if (!channel || !user) return null;
-    
-    const members = Object.values(channel.state.members);
-    const otherMember = members.find(member => member.user_id !== user.id);
-    
-    return otherMember?.user?.image as string || null;
+    return null;
   };
 
   const getOtherParticipantFullName = (): string => {
-    // Use profile data from Supabase if available
+    const channelToCheck = channel || initialChannelData;
+    if (!channelToCheck || !user) return '';
+    
+    const members = Object.values(channelToCheck.state?.members || {});
+    const otherMember = members.find((member: any) => member.user_id !== user.id);
+    
+    // Use Stream Chat user data first (immediate availability)
+    const streamName = (otherMember as any)?.user?.full_name as string;
+    if (streamName) {
+      return streamName;
+    }
+    
+    // Fallback to profile data from Supabase if available
     if (otherParticipantProfile?.full_name) {
       return otherParticipantProfile.full_name;
     }
     
-    // Fallback to Stream Chat user data
-    if (!channel || !user) return '';
-    
-    const members = Object.values(channel.state.members);
-    const otherMember = members.find(member => member.user_id !== user.id);
-    
-    return otherMember?.user?.full_name as string || '';
+    return '';
   };
 
   const getGroupMemberNames = (): string => {
-    if (!channel || !user || !isGroupChat) return '';
+    const channelToCheck = channel || initialChannelData;
+    if (!channelToCheck || !user || !isGroupChat) return '';
     
     // Exclude left members when showing member names
-    const leftMembers = channel.data?.left_members as string[] || [];
-    const members = Object.values(channel.state.members);
+    const leftMembers = channelToCheck.data?.left_members as string[] || [];
+    const members = Object.values(channelToCheck.state?.members || {});
     // Filter out the current user and left members
-    const activeOtherMembers = members.filter(member => 
+    const activeOtherMembers = members.filter((member: any) => 
       member.user_id !== user.id && !leftMembers.includes(member.user_id)
     );
-    const memberNames = activeOtherMembers.map(member => 
+    const memberNames = activeOtherMembers.map((member: any) => 
       member.user?.name || member.user?.full_name || 'Unknown'
     );
     
@@ -196,18 +262,19 @@ export default function ChannelScreen() {
   };
 
   const GroupAvatar = () => {
-    if (!channel || !user) {
+    const channelToCheck = channel || initialChannelData;
+    if (!channelToCheck || !user) {
       return (
         <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#e0e0e0' }} />
       );
     }
 
     // Check if group has a dedicated image
-    if (channel.data?.image) {
+    if (channelToCheck.data?.image) {
       return (
         <ProfileImage
-          avatarUrl={channel.data.image as string}
-          fullName={(channel.data.name as string) || 'Group'}
+          avatarUrl={channelToCheck.data.image as string}
+          fullName={(channelToCheck.data.name as string) || 'Group'}
           size={32}
           showBorder={false}
         />
@@ -227,13 +294,6 @@ export default function ChannelScreen() {
   };
 
   const ProfilePicture = () => {
-    // Show loading placeholder while fetching profile data
-    if (isProfileLoading) {
-      return (
-        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#e0e0e0' }} />
-      );
-    }
-    
     // For group chats, show group avatar and make it clickable
     if (isGroupChat) {
       return (
@@ -252,22 +312,16 @@ export default function ChannelScreen() {
     
     // Get other participant ID for navigation
     const getOtherParticipantId = (): string | null => {
-      if (!channel || !user) return null;
-      const members = Object.values(channel.state.members);
-      const otherMember = members.find(member => member.user_id !== user.id);
-      return otherMember?.user_id || null;
+      const channelToCheck = channel || initialChannelData;
+      if (!channelToCheck || !user) return null;
+      const members = Object.values(channelToCheck.state?.members || {});
+      const otherMember = members.find((member: any) => member.user_id !== user.id);
+      return (otherMember as any)?.user_id || null;
     };
 
     const otherParticipantId = getOtherParticipantId();
     
-    // Only render when we have at least the name to avoid flashing
-    if (!fullName && !otherParticipantProfile) {
-      return (
-        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#e0e0e0' }} />
-      );
-    }
-    
-    // Make the profile picture clickable for 1-on-1 chats
+    // Render immediately with available data (Stream Chat data is available instantly)
     if (otherParticipantId) {
       return (
         <TouchableOpacity 
@@ -294,7 +348,7 @@ export default function ChannelScreen() {
     );
   };
 
-  const HeaderLeft = () => {
+  const HeaderLeft = memo(() => {
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <TouchableOpacity
@@ -306,24 +360,14 @@ export default function ChannelScreen() {
         <ProfilePicture />
       </View>
     );
-  };
+  });
 
-  const HeaderTitle = () => {
+  const HeaderTitle = memo(() => {
     const channelName = getChannelName();
     const memberNames = getGroupMemberNames();
     
-    // Debug logging
-    console.log('🔍 HeaderTitle Debug:', {
-      isGroupChat,
-      channelName,
-      memberNames,
-      channelData: channel?.data,
-      channelDataName: channel?.data?.name
-    });
-    
     // For group chats, show group info with member names
     if (isGroupChat) {
-      console.log('🔍 Rendering group chat header');
       return (
         <TouchableOpacity 
           style={{ marginLeft: 8, flex: 1 }}
@@ -352,29 +396,20 @@ export default function ChannelScreen() {
     
     // For 1-on-1 chats, make the username clickable to navigate to profile
     const getOtherParticipantId = (): string | null => {
-      if (!channel || !user) return null;
-      const members = Object.values(channel.state.members);
-      const otherMember = members.find(member => member.user_id !== user.id);
-      return otherMember?.user_id || null;
+      const channelToCheck = channel || initialChannelData;
+      if (!channelToCheck || !user) return null;
+      const members = Object.values(channelToCheck.state?.members || {});
+      const otherMember = members.find((member: any) => member.user_id !== user.id);
+      return (otherMember as any)?.user_id || null;
     };
 
     const otherParticipantId = getOtherParticipantId();
     
-    console.log('🔍 1-on-1 chat debug:', {
-      otherParticipantId,
-      channelMembers: Object.values(channel?.state?.members || {}),
-      currentUserId: user?.id
-    });
-    
     if (otherParticipantId) {
-      console.log('🔍 Rendering clickable 1-on-1 header');
       return (
         <TouchableOpacity 
           style={{ marginLeft: 8, flex: 1 }}
-          onPress={() => {
-            console.log('🔍 Navigating to user profile:', otherParticipantId);
-            router.push(`/(home)/user-profile/${otherParticipantId}`);
-          }}
+          onPress={() => router.push(`/(home)/user-profile/${otherParticipantId}`)}
           activeOpacity={0.7}
         >
           <Text style={{ fontSize: 17, fontWeight: '600', color: themes.colors.text }}>
@@ -384,13 +419,12 @@ export default function ChannelScreen() {
       );
     }
     
-    console.log('🔍 Rendering fallback header');
     return (
       <Text style={{ marginLeft: 8, fontSize: 17, fontWeight: '600', color: themes.colors.text }}>
         {channelName}
       </Text>
     );
-  };
+  });
 
   const joinCall = async () => {
     const members = Object.values(channel.state.members).map((member) => ({
@@ -481,12 +515,9 @@ export default function ChannelScreen() {
     );
   };
 
-  if (!channel) {
-    return <ActivityIndicator />;
-  }
-
+  // Render header immediately, even if channel is still loading
   return (
-    <Channel channel={channel} audioRecordingEnabled>
+    <>
       <StatusBar backgroundColor={themes.colors.background} barStyle="light-content" />
       <Stack.Screen
         options={{
@@ -511,6 +542,13 @@ export default function ChannelScreen() {
           headerTintColor: themes.colors.text,
         }}
       />
+      
+      {!channel ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={themes.colors.text} />
+        </View>
+      ) : (
+        <Channel channel={channel} audioRecordingEnabled>
       <TouchableOpacity 
         style={{ flex: 1 }} 
         activeOpacity={1} 
@@ -529,7 +567,9 @@ export default function ChannelScreen() {
           )}
         </SafeAreaView>
       </TouchableOpacity>
-      <DropdownMenu />
+          <DropdownMenu />
+        </Channel>
+      )}
       
       {/* Custom Alert */}
       <CustomAlert
@@ -549,7 +589,7 @@ export default function ChannelScreen() {
         maxWidth={alertState.options.maxWidth}
         showIcon={alertState.options.showIcon}
       />
-    </Channel>
+    </>
   );
 }
 

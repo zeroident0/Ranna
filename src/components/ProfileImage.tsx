@@ -29,6 +29,16 @@ export default function ProfileImage({
 
   useEffect(() => {
     if (avatarUrl) {
+      // Check if it's already a full URL first (faster path)
+      if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+        setImageUrl(avatarUrl);
+        setLoading(false);
+        setError(false);
+        setHasInitialized(true);
+        return;
+      }
+      
+      // For Supabase paths, download asynchronously
       downloadImage(avatarUrl);
     } else {
       setImageUrl(null);
@@ -42,14 +52,6 @@ export default function ProfileImage({
     try {
       setLoading(true);
       setError(false);
-
-      // Check if the path is already a full URL
-      if (path.startsWith('http://') || path.startsWith('https://')) {
-        // It's already a full URL, use it directly
-        setImageUrl(path);
-        setLoading(false);
-        return;
-      }
 
       // It's a path, download from Supabase storage
       const { data, error } = await supabase.storage
