@@ -6,18 +6,20 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
-  Alert,
   SafeAreaView,
   Modal,
   Image,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, Stack } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useChatContext } from 'stream-chat-expo';
 import { useAuth } from '../../providers/AuthProvider';
 import { supabase } from '../../lib/supabase';
 import ProfileImage from '../../components/ProfileImage';
+import { useCustomAlert } from '../../hooks/useCustomAlert';
+import CustomAlert from '../../components/CustomAlert';
 import * as ImagePicker from 'expo-image-picker';
+import { handleLeaveGroup } from '../../utils/groupUtils';
 
 interface User {
   id: string;
@@ -30,14 +32,17 @@ export default function GroupInfoScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [showAddMembers, setShowAddMembers] = useState(false);
+  const [showInviteMembers, setShowInviteMembers] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingImage, setIsUpdatingImage] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   
   const { cid } = useLocalSearchParams<{ cid: string }>();
   const { client } = useChatContext();
   const { user: currentUser } = useAuth();
+  const { alertState, showSuccess, showError, showWarning, showInfo, showConfirm, hideAlert } = useCustomAlert();
 
   // Helper function to check if current user is admin
   const isCurrentUserAdmin = () => {
@@ -46,10 +51,98 @@ export default function GroupInfoScreen() {
     return admins.includes(currentUser.id);
   };
 
+  // Helper function to check if current user has left the group
+  const hasCurrentUserLeft = () => {
+    if (!channel || !currentUser) return false;
+    const leftMembers = channel.data?.left_members as string[] || [];
+    return leftMembers.includes(currentUser.id);
+  };
+
   // Helper function to check if a member is admin
   const isMemberAdmin = (member: any) => {
     const admins = channel?.data?.admins || [];
     return admins.includes(member.user_id);
+  };
+
+  // Helper function to check if current user has a pending invite
+  const hasCurrentUserPendingInvite = () => {
+    if (!channel || !currentUser) return false;
+    const invites = channel.data?.invites as string[] || [];
+    return invites.includes(currentUser.id);
+  };
+
+  // Function to query pending invites for this channel
+  const fetchPendingInvites = async () => {
+    try {
+      const channels = await client.queryChannels({
+        invite: 'pending',
+        cid: cid
+      });
+      
+      if (channels.length > 0) {
+        const channelData = channels[0];
+        // Get invited users from channel data
+        const invitedUserIds = (channelData.data?.invites as string[]) || [];
+        if (invitedUserIds.length > 0) {
+          // Fetch user details for invited users
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', invitedUserIds);
+          
+          setPendingInvites(profiles || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching pending invites:', error);
+    }
+  };
+
+  // Function to accept an invite
+  const handleAcceptInvite = async () => {
+    try {
+      await channel.acceptInvite({
+        message: { text: `${(currentUser as any)?.full_name || 'User'} joined the group!` }
+      });
+      
+      // Refresh channel data
+      const channels = await client.queryChannels({ cid });
+      setChannel(channels[0]);
+      
+      // Update members list
+      const leftMembers = channels[0].data?.left_members as string[] || [];
+      const allMembers = Object.values(channels[0].state.members);
+      const activeMembers = allMembers.filter(member => 
+        !leftMembers.includes(member.user_id)
+      );
+      setMembers(activeMembers);
+      
+      showSuccess('Success', 'You have joined the group!');
+    } catch (error) {
+      console.error('Error accepting invite:', error);
+      showError('Error', 'Failed to accept invitation');
+    }
+  };
+
+  // Function to reject an invite
+  const handleRejectInvite = async () => {
+    showConfirm(
+      'Reject Invitation',
+      'Are you sure you want to reject this group invitation?',
+      async () => {
+        try {
+          await channel.rejectInvite();
+          showSuccess('Success', 'Invitation rejected');
+          router.replace('/(home)/(tabs)/');
+        } catch (error) {
+          console.error('Error rejecting invite:', error);
+          showError('Error', 'Failed to reject invitation');
+        }
+      },
+      undefined,
+      'Reject',
+      'Cancel'
+    );
   };
 
   useEffect(() => {
@@ -60,9 +153,13 @@ export default function GroupInfoScreen() {
         setChannel(channelData);
         setNewGroupName(channelData?.data?.name || '');
         
-        // Get member details
-        const memberList = Object.values(channelData.state.members);
-        setMembers(memberList);
+        // Get member details (exclude left members)
+        const leftMembers = channelData.data?.left_members as string[] || [];
+        const allMembers = Object.values(channelData.state.members);
+        const activeMembers = allMembers.filter(member => 
+          !leftMembers.includes(member.user_id)
+        );
+        setMembers(activeMembers);
         
         // Fetch all users for adding members
         const { data: profiles } = await supabase
@@ -70,16 +167,19 @@ export default function GroupInfoScreen() {
           .select('*')
           .neq('id', currentUser.id);
         
-        // Filter out users who are already members
-        const existingMemberIds = memberList.map(member => member.user_id);
+        // Filter out users who are already active members
+        const existingMemberIds = activeMembers.map(member => member.user_id);
         const availableUsers = profiles?.filter(profile => 
           !existingMemberIds.includes(profile.id)
         ) || [];
         
         setAllUsers(availableUsers);
+        
+        // Fetch pending invites
+        await fetchPendingInvites();
       } catch (error) {
         console.error('Error fetching channel:', error);
-        Alert.alert('Error', 'Failed to load group information');
+        showError('Error', 'Failed to load group information');
       } finally {
         setIsLoading(false);
       }
@@ -90,32 +190,34 @@ export default function GroupInfoScreen() {
 
   const handleRenameGroup = async () => {
     if (!isCurrentUserAdmin()) {
-      Alert.alert('Error', 'Only admins can rename the group');
+      showError('Error', 'Only admins can rename the group');
       return;
     }
 
     if (!newGroupName.trim()) {
-      Alert.alert('Error', 'Group name cannot be empty');
+      showError('Error', 'Group name cannot be empty');
       return;
     }
 
     try {
       await channel.update({ name: newGroupName.trim() });
       setShowRenameModal(false);
-      Alert.alert('Success', 'Group name updated successfully');
+      showSuccess('Success', 'Group name updated successfully');
     } catch (error) {
       console.error('Error renaming group:', error);
-      Alert.alert('Error', 'Failed to rename group');
+      showError('Error', 'Failed to rename group');
     }
   };
 
+  // Function to directly add a member (no invitation needed)
   const handleAddMember = async (user: User) => {
     if (!isCurrentUserAdmin()) {
-      Alert.alert('Error', 'Only admins can add members');
+      showError('Error', 'Only admins can add members');
       return;
     }
 
     try {
+      // Directly add the member to the group
       await channel.addMembers([user.id]);
       
       // Update local state
@@ -131,137 +233,138 @@ export default function GroupInfoScreen() {
       setMembers(prev => [...prev, newMember]);
       setAllUsers(prev => prev.filter(u => u.id !== user.id));
       
-      Alert.alert('Success', `${user.full_name} added to the group`);
+      showSuccess('Success', `${user.full_name} added to the group`);
     } catch (error) {
       console.error('Error adding member:', error);
-      Alert.alert('Error', 'Failed to add member');
+      showError('Error', 'Failed to add member');
+    }
+  };
+
+  // Function to invite a member (they need to accept)
+  const handleInviteMember = async (user: User) => {
+    if (!isCurrentUserAdmin()) {
+      showError('Error', 'Only admins can invite members');
+      return;
+    }
+
+    try {
+      // Use inviteMembers to send an invitation
+      await channel.inviteMembers([user.id]);
+      
+      // Remove user from available users list since they've been invited
+      setAllUsers(prev => prev.filter(u => u.id !== user.id));
+      
+      showSuccess('Success', `Invitation sent to ${user.full_name}`);
+    } catch (error) {
+      console.error('Error inviting member:', error);
+      showError('Error', 'Failed to send invitation');
     }
   };
 
   const handleRemoveMember = async (member: any) => {
     if (!isCurrentUserAdmin()) {
-      Alert.alert('Error', 'Only admins can remove members');
+      showError('Error', 'Only admins can remove members');
       return;
     }
 
     if (member.user_id === currentUser.id) {
-      Alert.alert('Error', 'You cannot remove yourself from the group');
+      showError('Error', 'You cannot remove yourself from the group');
       return;
     }
 
-    Alert.alert(
+    showConfirm(
       'Remove Member',
       `Are you sure you want to remove ${member.user?.name || member.user?.full_name} from the group?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await channel.removeMembers([member.user_id]);
-              setMembers(prev => prev.filter(m => m.user_id !== member.user_id));
-              Alert.alert('Success', 'Member removed from the group');
-            } catch (error) {
-              console.error('Error removing member:', error);
-              Alert.alert('Error', 'Failed to remove member');
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          await channel.removeMembers([member.user_id]);
+          setMembers(prev => prev.filter(m => m.user_id !== member.user_id));
+          showSuccess('Success', 'Member removed from the group');
+        } catch (error) {
+          console.error('Error removing member:', error);
+          showError('Error', 'Failed to remove member');
+        }
+      },
+      undefined,
+      'Remove',
+      'Cancel'
     );
   };
 
   const handlePromoteToAdmin = async (member: any) => {
     if (!isCurrentUserAdmin()) {
-      Alert.alert('Error', 'Only admins can promote members');
+      showError('Error', 'Only admins can promote members');
       return;
     }
 
-    Alert.alert(
+    showConfirm(
       'Promote to Admin',
       `Are you sure you want to promote ${member.user?.name || member.user?.full_name} to admin?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Promote',
-          onPress: async () => {
-            try {
-              const currentAdmins = channel.data?.admins || [];
-              const updatedAdmins = [...currentAdmins, member.user_id];
-              await channel.update({ admins: updatedAdmins });
-              Alert.alert('Success', 'Member promoted to admin');
-            } catch (error) {
-              console.error('Error promoting member:', error);
-              Alert.alert('Error', 'Failed to promote member');
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          const currentAdmins = channel.data?.admins || [];
+          const updatedAdmins = [...currentAdmins, member.user_id];
+          await channel.update({ admins: updatedAdmins });
+          showSuccess('Success', 'Member promoted to admin');
+        } catch (error) {
+          console.error('Error promoting member:', error);
+          showError('Error', 'Failed to promote member');
+        }
+      },
+      undefined,
+      'Promote',
+      'Cancel'
     );
   };
 
   const handleDemoteFromAdmin = async (member: any) => {
     if (!isCurrentUserAdmin()) {
-      Alert.alert('Error', 'Only admins can demote members');
+      showError('Error', 'Only admins can demote members');
       return;
     }
 
     if (member.user_id === currentUser.id) {
-      Alert.alert('Error', 'You cannot demote yourself');
+      showError('Error', 'You cannot demote yourself');
       return;
     }
 
-    Alert.alert(
+    showConfirm(
       'Remove Admin',
       `Are you sure you want to remove admin privileges from ${member.user?.name || member.user?.full_name}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const currentAdmins = channel.data?.admins || [];
-              const updatedAdmins = currentAdmins.filter(adminId => adminId !== member.user_id);
-              await channel.update({ admins: updatedAdmins });
-              Alert.alert('Success', 'Admin privileges removed');
-            } catch (error) {
-              console.error('Error demoting member:', error);
-              Alert.alert('Error', 'Failed to remove admin privileges');
-            }
-          },
-        },
-      ]
+      async () => {
+        try {
+          const currentAdmins = channel.data?.admins || [];
+          const updatedAdmins = currentAdmins.filter(adminId => adminId !== member.user_id);
+          await channel.update({ admins: updatedAdmins });
+          showSuccess('Success', 'Admin privileges removed');
+        } catch (error) {
+          console.error('Error demoting member:', error);
+          showError('Error', 'Failed to remove admin privileges');
+        }
+      },
+      undefined,
+      'Remove',
+      'Cancel'
     );
   };
 
-  const handleLeaveGroup = () => {
-    Alert.alert(
-      'Leave Group',
-      'Are you sure you want to leave this group?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Leave',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await channel.removeMembers([currentUser.id]);
-              router.replace('/(home)/(tabs)/');
-            } catch (error) {
-              console.error('Error leaving group:', error);
-              Alert.alert('Error', 'Failed to leave group');
-            }
-          },
-        },
-      ]
-    );
+  const onLeaveGroup = () => {
+    handleLeaveGroup({
+      channel,
+      currentUser,
+      members,
+      isCurrentUserAdmin,
+      isMemberAdmin,
+      showConfirm,
+      showWarning,
+      showError,
+    });
   };
+
 
   const pickGroupImage = async () => {
     if (!isCurrentUserAdmin()) {
-      Alert.alert('Error', 'Only admins can change the group image');
+      showError('Error', 'Only admins can change the group image');
       return;
     }
 
@@ -278,7 +381,7 @@ export default function GroupInfoScreen() {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      showError('Error', 'Failed to pick image. Please try again.');
     }
   };
 
@@ -360,10 +463,10 @@ export default function GroupInfoScreen() {
       const channels = await client.queryChannels({ cid });
       setChannel(channels[0]);
       
-      Alert.alert('Success', 'Group image updated successfully');
+      showSuccess('Success', 'Group image updated successfully');
     } catch (error) {
       console.error('Error updating group image:', error);
-      Alert.alert('Upload Error', error.message || 'Failed to update group image');
+      showError('Upload Error', error.message || 'Failed to update group image');
     } finally {
       setIsUpdatingImage(false);
     }
@@ -371,37 +474,33 @@ export default function GroupInfoScreen() {
 
   const removeGroupImage = () => {
     if (!isCurrentUserAdmin()) {
-      Alert.alert('Error', 'Only admins can remove the group image');
+      showError('Error', 'Only admins can remove the group image');
       return;
     }
 
-    Alert.alert(
+    showConfirm(
       'Remove Group Image',
       'Are you sure you want to remove the group image?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            setIsUpdatingImage(true);
-            try {
-              await channel.update({ image: null });
-              
-              // Refresh channel data to ensure UI updates
-              const channels = await client.queryChannels({ cid });
-              setChannel(channels[0]);
-              
-              Alert.alert('Success', 'Group image removed successfully');
-            } catch (error) {
-              console.error('Error removing group image:', error);
-              Alert.alert('Error', 'Failed to remove group image');
-            } finally {
-              setIsUpdatingImage(false);
-            }
-          },
-        },
-      ]
+      async () => {
+        setIsUpdatingImage(true);
+        try {
+          await channel.update({ image: null });
+          
+          // Refresh channel data to ensure UI updates
+          const channels = await client.queryChannels({ cid });
+          setChannel(channels[0]);
+          
+          showSuccess('Success', 'Group image removed successfully');
+        } catch (error) {
+          console.error('Error removing group image:', error);
+          showError('Error', 'Failed to remove group image');
+        } finally {
+          setIsUpdatingImage(false);
+        }
+      },
+      undefined,
+      'Remove',
+      'Cancel'
     );
   };
 
@@ -461,10 +560,7 @@ export default function GroupInfoScreen() {
   };
 
   const renderAvailableUser = ({ item }: { item: User }) => (
-    <TouchableOpacity
-      style={styles.userItem}
-      onPress={() => handleAddMember(item)}
-    >
+    <View style={styles.userItem}>
       <ProfileImage
         avatarUrl={item.avatar_url}
         fullName={item.full_name}
@@ -472,8 +568,21 @@ export default function GroupInfoScreen() {
         showBorder={false}
       />
       <Text style={styles.userName}>{item.full_name}</Text>
-      <Ionicons name="add-circle" size={24} color="#007AFF" />
-    </TouchableOpacity>
+      <View style={styles.userActions}>
+        <TouchableOpacity
+          onPress={() => handleAddMember(item)}
+          style={styles.userActionButton}
+        >
+          <Ionicons name="add-circle" size={24} color="#007AFF" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleInviteMember(item)}
+          style={styles.userActionButton}
+        >
+          <Ionicons name="mail" size={24} color="#34C759" />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
   if (isLoading) {
@@ -488,19 +597,49 @@ export default function GroupInfoScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Group Info</Text>
-        <View style={{ width: 24 }} />
+      <Stack.Screen options={{ title: '' }} />
+
+      {/* Group Image */}
+      <View style={styles.groupImageSection}>
+        <View style={styles.groupImageContainer}>
+          <View style={styles.groupImageWrapper}>
+            <ProfileImage
+              avatarUrl={channel?.data?.image}
+              fullName={channel?.data?.name || 'Group'}
+              size={120}
+              showBorder={false}
+            />
+            {isCurrentUserAdmin() && (
+              <View style={styles.groupImageActions}>
+                <TouchableOpacity
+                  onPress={pickGroupImage}
+                  style={styles.imageActionButton}
+                  disabled={isUpdatingImage}
+                >
+                  <Ionicons name="camera" size={20} color="#007AFF" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={removeGroupImage}
+                  style={styles.imageActionButton}
+                  disabled={isUpdatingImage}
+                >
+                  <Ionicons name="trash" size={20} color="#ff3b30" />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+          {isUpdatingImage && (
+            <View style={styles.loadingOverlay}>
+              <Text style={styles.loadingText}>Updating...</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Group Name */}
       <View style={styles.groupNameSection}>
         <Text style={styles.groupName}>{channel?.data?.name || 'Group Chat'}</Text>
-        {isCurrentUserAdmin() && (
+        {isCurrentUserAdmin() && !hasCurrentUserLeft() && (
           <TouchableOpacity
             onPress={() => setShowRenameModal(true)}
             style={styles.editButton}
@@ -508,55 +647,6 @@ export default function GroupInfoScreen() {
             <Ionicons name="pencil" size={20} color="#007AFF" />
           </TouchableOpacity>
         )}
-      </View>
-
-      {/* Group Image */}
-      <View style={styles.groupImageSection}>
-        <Text style={styles.sectionTitle}>Group Photo</Text>
-        <View style={styles.groupImageContainer}>
-          {channel?.data?.image ? (
-            <View style={styles.groupImageWrapper}>
-              <Image 
-                source={{ uri: channel.data.image }} 
-                style={styles.groupImage} 
-              />
-              {isCurrentUserAdmin() && (
-                <View style={styles.groupImageActions}>
-                  <TouchableOpacity
-                    onPress={pickGroupImage}
-                    style={styles.imageActionButton}
-                    disabled={isUpdatingImage}
-                  >
-                    <Ionicons name="camera" size={20} color="#007AFF" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={removeGroupImage}
-                    style={styles.imageActionButton}
-                    disabled={isUpdatingImage}
-                  >
-                    <Ionicons name="trash" size={20} color="#ff3b30" />
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.groupImagePlaceholder}
-              onPress={pickGroupImage}
-              disabled={!isCurrentUserAdmin() || isUpdatingImage}
-            >
-              <Ionicons name="camera" size={32} color="#666" />
-              <Text style={styles.groupImagePlaceholderText}>
-                {isCurrentUserAdmin() ? 'Add Group Photo' : 'No Group Photo'}
-              </Text>
-            </TouchableOpacity>
-          )}
-          {isUpdatingImage && (
-            <View style={styles.loadingOverlay}>
-              <Text style={styles.loadingText}>Updating...</Text>
-            </View>
-          )}
-        </View>
       </View>
 
       {/* Members Count */}
@@ -567,15 +657,24 @@ export default function GroupInfoScreen() {
       {/* Members List */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Members</Text>
-          {isCurrentUserAdmin() && (
-            <TouchableOpacity
-              onPress={() => setShowAddMembers(true)}
-              style={styles.addButton}
-            >
-              <Ionicons name="person-add" size={20} color="#007AFF" />
-              <Text style={styles.addButtonText}>Add</Text>
-            </TouchableOpacity>
+          <Text style={styles.sectionTitle}>{members.length} members</Text>
+          {isCurrentUserAdmin() && !hasCurrentUserLeft() && (
+            <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity
+                onPress={() => setShowAddMembers(true)}
+                style={[styles.actionButton, styles.addButton]}
+              >
+                <Ionicons name="person-add" size={16} color="#007AFF" />
+                <Text style={styles.actionButtonText}>Add</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowInviteMembers(true)}
+                style={[styles.actionButton, styles.inviteButton]}
+              >
+                <Ionicons name="mail" size={16} color="#34C759" />
+                <Text style={[styles.actionButtonText, styles.inviteButtonText]}>Invite</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
         
@@ -587,13 +686,80 @@ export default function GroupInfoScreen() {
         />
       </View>
 
-      {/* Leave Group Button */}
-      <TouchableOpacity
-        style={styles.leaveButton}
-        onPress={handleLeaveGroup}
-      >
-        <Text style={styles.leaveButtonText}>Leave Group</Text>
-      </TouchableOpacity>
+      {/* Pending Invites Section (for admins) */}
+      {isCurrentUserAdmin() && pendingInvites.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Pending Invitations ({pendingInvites.length})</Text>
+          </View>
+          <FlatList
+            data={pendingInvites}
+            renderItem={({ item }) => (
+              <View style={styles.memberItem}>
+                <ProfileImage
+                  avatarUrl={item.avatar_url}
+                  fullName={item.full_name}
+                  size={48}
+                  showBorder={false}
+                />
+                <View style={styles.memberInfo}>
+                  <Text style={styles.memberName}>{item.full_name}</Text>
+                  <Text style={styles.pendingInviteText}>Invitation sent</Text>
+                </View>
+                <View style={styles.memberActions}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      // Remove from pending invites (cancel invitation)
+                      setPendingInvites(prev => prev.filter(invite => invite.id !== item.id));
+                      showInfo('Info', 'Invitation cancelled');
+                    }}
+                    style={styles.removeButton}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#ff3b30" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+          />
+        </View>
+      )}
+
+      {/* Invite Response Buttons or Leave Group Button */}
+      {hasCurrentUserPendingInvite() ? (
+        <View style={styles.inviteButtonContainer}>
+          <TouchableOpacity
+            style={[styles.inviteResponseButton, styles.acceptButton]}
+            onPress={handleAcceptInvite}
+          >
+            <Text style={styles.inviteResponseButtonText}>Accept Invitation</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.inviteResponseButton, styles.rejectButton]}
+            onPress={handleRejectInvite}
+          >
+            <Text style={styles.inviteResponseButtonText}>Reject Invitation</Text>
+          </TouchableOpacity>
+        </View>
+      ) : hasCurrentUserLeft() ? (
+        <TouchableOpacity
+          style={[styles.leaveButton, styles.rejoinButton]}
+          onPress={() => {
+            // TODO: Implement rejoin functionality
+            showInfo('Info', 'Rejoin functionality will be implemented soon');
+          }}
+        >
+          <Text style={styles.leaveButtonText}>Rejoin Group</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.leaveButton}
+          onPress={onLeaveGroup}
+        >
+          <Text style={styles.leaveButtonText}>Leave Group</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Add Members Modal */}
       <Modal
@@ -608,6 +774,42 @@ export default function GroupInfoScreen() {
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Add Members</Text>
             <View style={{ width: 60 }} />
+          </View>
+          
+          <View style={styles.modalDescription}>
+            <Text style={styles.modalDescriptionText}>
+              Users will be added directly to the group without needing to accept an invitation.
+            </Text>
+          </View>
+          
+          <FlatList
+            data={allUsers}
+            renderItem={renderAvailableUser}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.usersList}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Invite Members Modal */}
+      <Modal
+        visible={showInviteMembers}
+        animationType="slide"
+        onRequestClose={() => setShowInviteMembers(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowInviteMembers(false)}>
+              <Text style={styles.cancelButton}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Invite Members</Text>
+            <View style={{ width: 60 }} />
+          </View>
+          
+          <View style={styles.modalDescription}>
+            <Text style={styles.modalDescriptionText}>
+              Users will receive an invitation and need to accept it to join the group.
+            </Text>
           </View>
           
           <FlatList
@@ -654,6 +856,26 @@ export default function GroupInfoScreen() {
           </View>
         </View>
       </Modal>
+
+
+      {/* Custom Alert */}
+      <CustomAlert
+        visible={alertState.visible}
+        title={alertState.options.title}
+        message={alertState.options.message}
+        type={alertState.options.type}
+        buttons={alertState.options.buttons}
+        onDismiss={hideAlert}
+        showCloseButton={alertState.options.showCloseButton}
+        icon={alertState.options.icon}
+        customIcon={alertState.options.customIcon}
+        animationType={alertState.options.animationType}
+        backgroundColor={alertState.options.backgroundColor}
+        overlayColor={alertState.options.overlayColor}
+        borderRadius={alertState.options.borderRadius}
+        maxWidth={alertState.options.maxWidth}
+        showIcon={alertState.options.showIcon}
+      />
     </SafeAreaView>
   );
 }
@@ -668,48 +890,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-  },
   groupNameSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingVertical: 6,
     backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+
+    position: 'relative',
   },
   groupName: {
+    textAlign: 'center',
     fontSize: 24,
     fontWeight: '700',
     color: '#000',
     flex: 1,
   },
   editButton: {
+    position: 'absolute',
+    right: 16,
     padding: 8,
   },
   membersCountSection: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+
   },
   membersCount: {
+    textAlign: 'center',
     fontSize: 16,
     color: '#666',
   },
@@ -731,19 +941,33 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000',
   },
-  addButton: {
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#f0f8ff',
     borderRadius: 16,
   },
-  addButtonText: {
+  addButton: {
+    backgroundColor: '#f0f8ff',
+  },
+  inviteButton: {
+    backgroundColor: '#f0fff4',
+  },
+  actionButtonText: {
     fontSize: 14,
-    color: '#007AFF',
     fontWeight: '600',
     marginLeft: 4,
+  },
+  addButtonText: {
+    color: '#007AFF',
+  },
+  inviteButtonText: {
+    color: '#34C759',
   },
   memberItem: {
     flexDirection: 'row',
@@ -785,6 +1009,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#ff3b30',
     borderRadius: 12,
     alignItems: 'center',
+  },
+  rejoinButton: {
+    backgroundColor: '#007AFF',
   },
   leaveButtonText: {
     fontSize: 16,
@@ -841,6 +1068,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
     fontWeight: '500',
+  },
+  userActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  userActionButton: {
+    padding: 4,
+  },
+  modalDescription: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalDescriptionText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   renameModalOverlay: {
     flex: 1,
@@ -904,27 +1151,22 @@ const styles = StyleSheet.create({
   groupImageSection: {
     backgroundColor: 'white',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingVertical: 5,
+    paddingBottom: 20, // Add extra padding to accommodate buttons
   },
   groupImageContainer: {
     alignItems: 'center',
     marginTop: 12,
     position: 'relative',
+    paddingBottom: 15, // Add padding to prevent clipping
   },
   groupImageWrapper: {
     position: 'relative',
   },
-  groupImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-  },
   groupImageActions: {
     position: 'absolute',
-    bottom: -5,
-    right: -5,
+    bottom: -10,
+    right: -10,
     flexDirection: 'row',
     backgroundColor: 'white',
     borderRadius: 20,
@@ -942,23 +1184,6 @@ const styles = StyleSheet.create({
     padding: 8,
     marginHorizontal: 2,
   },
-  groupImagePlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#f0f0f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    borderStyle: 'dashed',
-  },
-  groupImagePlaceholderText: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 8,
-    textAlign: 'center',
-  },
   loadingOverlay: {
     position: 'absolute',
     top: 0,
@@ -974,5 +1199,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+  },
+  inviteButtonContainer: {
+    flexDirection: 'row',
+    margin: 16,
+    gap: 12,
+  },
+  inviteResponseButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  acceptButton: {
+    backgroundColor: '#34C759',
+  },
+  rejectButton: {
+    backgroundColor: '#FF3B30',
+  },
+  inviteResponseButtonText: {
+    fontSize: 16,
+    color: 'white',
+    fontWeight: '600',
+  },
+  pendingInviteText: {
+    fontSize: 12,
+    color: '#FF9500',
+    fontWeight: '500',
+    marginTop: 2,
   },
 });

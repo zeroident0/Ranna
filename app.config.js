@@ -69,7 +69,7 @@ export default ({ config }) => ({
       "@stream-io/video-react-native-sdk",
       {
         ringingPushNotifications: {
-          disableVideoIos: false,
+          disableVideoIos: true,
           includesCallsInRecentsIos: true
         }
       }

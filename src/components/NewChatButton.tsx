@@ -24,7 +24,7 @@ export default function NewChatButton() {
                 onPress={() => setShowOptions(true)}
                 activeOpacity={0.8}
             >
-                <Octicons name="person-add" size={24} color="white" />
+                <Octicons name="plus" size={24} color="white" style={styles.icon} />
             </TouchableOpacity>
 
             <Modal
@@ -77,8 +77,8 @@ const styles = StyleSheet.create({
         right: 20,
         width: 56,
         height: 56,
-        borderRadius: 28,
-        backgroundColor: '#007AFF', // iOS blue color
+        borderRadius: 12,
+        backgroundColor: '#B19CD9', // Light purple shade
         justifyContent: 'center',
         alignItems: 'center',
         elevation: 8, // Android shadow
@@ -89,6 +89,7 @@ const styles = StyleSheet.create({
         },
         shadowOpacity: 0.3,
         shadowRadius: 4.65,
+        transform: [{ rotate: '45deg' }],
     },
     modalOverlay: {
         flex: 1,
@@ -151,6 +152,9 @@ const styles = StyleSheet.create({
     optionSubtitle: {
         fontSize: 14,
         color: '#666',
+    },
+    icon: {
+        transform: [{ rotate: '-45deg' }],
     },
 });
 

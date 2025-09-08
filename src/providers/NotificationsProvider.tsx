@@ -7,7 +7,7 @@ const client = StreamChat.getInstance(process.env.EXPO_PUBLIC_STREAM_API_KEY);
 
 export default function NotificationsProvider({ children }: PropsWithChildren) {
   const [isReady, setIsReady] = useState(false);
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   const requestPermission = async () => {
     const authStatus = await messaging().requestPermission();
@@ -21,8 +21,15 @@ export default function NotificationsProvider({ children }: PropsWithChildren) {
   };
 
   useEffect(() => {
+    if (loading) {
+      console.log('🔔 NotificationsProvider: Auth still loading, waiting...');
+      setIsReady(false);
+      return;
+    }
+    
     if (!user) {
-      console.log('🔔 NotificationsProvider: No user available, waiting...');
+      console.log('🔔 NotificationsProvider: No user available, clearing notifications state...');
+      setIsReady(false);
       return;
     }
 
@@ -61,7 +68,7 @@ export default function NotificationsProvider({ children }: PropsWithChildren) {
     };
 
     init();
-  }, [user]);
+  }, [user, loading]);
 
   if (!isReady) {
     return null;

@@ -5,6 +5,7 @@ import VideoProvider from '../../providers/VideoProvider';
 import CallProvider from '../../providers/CallProvider';
 import NotificationsProvider from '../../providers/NotificationsProvider';
 import { Text } from 'react-native';
+import { themes } from '../../constants/themes';
 
 export default function HomeLayout() {
   const { user, loading } = useAuth();
@@ -31,8 +32,22 @@ export default function HomeLayout() {
             <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="users" options={{ title: 'Users' }} />
-              <Stack.Screen name="call" options={{ title: 'Call' }} />
+              <Stack.Screen name="call" options={{ title: 'Audio Call' }} />
               <Stack.Screen name="channel/[cid]" options={{ title: 'Channel' }} />
+              <Stack.Screen 
+                name="user-profile/[userId]" 
+                options={{
+                  title: '',
+                  headerShown: true,
+                  headerStyle: {
+                    backgroundColor: themes.colors.background,
+                  },
+                  headerTintColor: themes.colors.text,
+                  headerTitleStyle: {
+                    color: themes.colors.text,
+                  },
+                }} 
+              />
             </Stack>
           </CallProvider>
         </VideoProvider>

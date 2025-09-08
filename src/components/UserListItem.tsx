@@ -1,13 +1,22 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useChatContext } from 'stream-chat-expo';
 import { useAuth } from '../providers/AuthProvider';
 import { router } from 'expo-router';
 import ProfileImage from './ProfileImage';
+import { usePresence } from '../hooks/usePresence';
 
 const UserListItem = ({ user }) => {
   const { client } = useChatContext();
   const { user: me } = useAuth();
+  const { isUserOnline, updatePresence } = usePresence();
+
+  // Update presence data for this user (throttled by usePresence hook)
+  useEffect(() => {
+    if (user?.id) {
+      updatePresence(user.id);
+    }
+  }, [user?.id, updatePresence]);
 
   const onPress = async () => {
     //start a chat with him
@@ -15,7 +24,19 @@ const UserListItem = ({ user }) => {
       members: [me.id, user.id],
     });
     await channel.watch();
-    router.replace(`/(home)/channel/${channel.cid}`);
+    router.replace({
+      pathname: `/(home)/channel/${channel.cid}`,
+      params: { 
+        channelData: JSON.stringify({
+          cid: channel.cid,
+          data: channel.data,
+          state: {
+            members: channel.state.members,
+            messages: channel.state.messages
+          }
+        })
+      }
+    });
   };
 
   return (
@@ -27,12 +48,18 @@ const UserListItem = ({ user }) => {
       ]}
     >
       <View style={styles.avatarContainer}>
-        <ProfileImage
-          avatarUrl={user.avatar_url}
-          fullName={user.full_name}
-          size={48}
-          showBorder={false}
-        />
+        <View style={styles.avatarWithIndicator}>
+          <ProfileImage
+            avatarUrl={user.avatar_url}
+            fullName={user.full_name}
+            size={48}
+            showBorder={false}
+            userId={user.id}
+          />
+          {isUserOnline(user.id) && (
+            <View style={styles.onlineIndicator} />
+          )}
+        </View>
       </View>
       <View style={styles.content}>
         <Text style={styles.name}>{user.full_name}</Text>
@@ -64,6 +91,20 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     marginRight: 12,
+  },
+  avatarWithIndicator: {
+    position: 'relative',
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#34C759',
+    borderWidth: 2,
+    borderColor: 'white',
   },
   content: {
     flex: 1,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, ViewStyle } from 'react-native';
 import { supabase } from '../lib/supabase';
+import ImageCacheService from '../services/ImageCacheService';
 
 interface ProfileImageProps {
   avatarUrl?: string | null;
@@ -9,6 +10,7 @@ interface ProfileImageProps {
   style?: ViewStyle;
   showBorder?: boolean;
   borderColor?: string;
+  userId?: string; // Add userId for caching
 }
 
 export default function ProfileImage({
@@ -17,7 +19,8 @@ export default function ProfileImage({
   size = 48,
   style,
   showBorder = false,
-  borderColor = '#007AFF'
+  borderColor = '#007AFF',
+  userId
 }: ProfileImageProps) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -29,6 +32,16 @@ export default function ProfileImage({
 
   useEffect(() => {
     if (avatarUrl) {
+      // Check if it's already a full URL first (faster path)
+      if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')) {
+        setImageUrl(avatarUrl);
+        setLoading(false);
+        setError(false);
+        setHasInitialized(true);
+        return;
+      }
+      
+      // For Supabase paths, download asynchronously with caching
       downloadImage(avatarUrl);
     } else {
       setImageUrl(null);
@@ -36,22 +49,26 @@ export default function ProfileImage({
       setLoading(false);
     }
     setHasInitialized(true);
-  }, [avatarUrl]);
+  }, [avatarUrl, userId]);
 
   async function downloadImage(path: string) {
     try {
       setLoading(true);
       setError(false);
 
-      // Check if the path is already a full URL
-      if (path.startsWith('http://') || path.startsWith('https://')) {
-        // It's already a full URL, use it directly
-        setImageUrl(path);
-        setLoading(false);
-        return;
+      // If we have a userId, use the caching service
+      if (userId) {
+        const cacheService = ImageCacheService.getInstance();
+        const cachedImageUrl = await cacheService.downloadAndCacheImage(userId, path);
+        
+        if (cachedImageUrl) {
+          setImageUrl(cachedImageUrl);
+          setLoading(false);
+          return;
+        }
       }
 
-      // It's a path, download from Supabase storage
+      // Fallback to direct download if no userId or caching failed
       const { data, error } = await supabase.storage
         .from('avatars')
         .download(path);
