@@ -1,6 +1,6 @@
 // ________________________________________IMPORTS________________________________________
-import React, { useState, useEffect, memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Dimensions, StatusBar } from 'react-native';
+import React, { useState, useEffect, memo, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Dimensions, StatusBar, Animated, Alert } from 'react-native';
 import { Channel as ChannelType } from 'stream-chat';
 import { useAuth } from '../providers/AuthProvider';
 import ProfileImage from './ProfileImage';
@@ -9,6 +9,7 @@ import { router } from 'expo-router';
 import { usePresence } from '../hooks/usePresence';
 import { formatTimestamp } from '../utils/formatTimestamp';
 import { useChatContext } from 'stream-chat-expo';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
 // ________________________________________INTERFACES________________________________________
 interface ChannelListItemProps {
@@ -32,6 +33,10 @@ const ChannelListItem = memo(function ChannelListItem({
   const [selectedImageUrl, setSelectedImageUrl] = useState<string>('');
   const [selectedImageName, setSelectedImageName] = useState<string>('');
   const [isBlocked, setIsBlocked] = useState(false);
+  
+  // Swipe gesture state
+  const translateX = useRef(new Animated.Value(0)).current;
+  const [isSwipeOpen, setIsSwipeOpen] = useState(false);
 
   // Check block status on mount
   useEffect(() => {
@@ -461,14 +466,123 @@ const ChannelListItem = memo(function ChannelListItem({
     setSelectedImageName('');
   };
 
+  // Delete channel functionality
+  const handleDeleteChannel = async () => {
+    if (!client || !user) return;
+
+    Alert.alert(
+      'Delete Channel',
+      'Are you sure you want to delete this channel? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // For group chats, remove the user from the channel
+              if (isGroupChat()) {
+                await channel.removeMembers([user.id]);
+              } else {
+                // For 1-on-1 chats, hide the channel
+                await channel.hide();
+              }
+              
+              // Close the swipe if it was open
+              closeSwipe();
+            } catch (error) {
+              console.error('Error deleting channel:', error);
+              Alert.alert('Error', 'Failed to delete channel. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Swipe gesture handlers
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { useNativeDriver: true }
+  );
+
+  const onHandlerStateChange = (event: any) => {
+    if (event.nativeEvent.state === State.END) {
+      const { translationX, velocityX } = event.nativeEvent;
+      
+      // Determine if we should open or close the swipe
+      const shouldOpen = translationX < -50 || velocityX < -500;
+      const shouldClose = translationX > -50 && velocityX > -500;
+      
+      if (shouldOpen) {
+        openSwipe();
+      } else if (shouldClose) {
+        closeSwipe();
+      } else {
+        // Snap back to original position
+        closeSwipe();
+      }
+    }
+  };
+
+  const openSwipe = () => {
+    Animated.spring(translateX, {
+      toValue: -80,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8,
+    }).start();
+    setIsSwipeOpen(true);
+  };
+
+  const closeSwipe = () => {
+    Animated.spring(translateX, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 100,
+      friction: 8,
+    }).start();
+    setIsSwipeOpen(false);
+  };
+
 
   // ________________________________________RENDER________________________________________
   return (
-    <TouchableOpacity
-      style={[styles.container, hasUserLeft() && styles.leftGroupContainer]}
-      onPress={handlePress}
-      activeOpacity={0.7}
-    >
+    <View style={styles.swipeContainer}>
+      {/* Delete button background */}
+      <View style={styles.deleteButtonContainer}>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={handleDeleteChannel}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="trash" size={20} color="white" />
+        </TouchableOpacity>
+      </View>
+      
+      {/* Swipeable content */}
+      <PanGestureHandler
+        onGestureEvent={onGestureEvent}
+        onHandlerStateChange={onHandlerStateChange}
+        activeOffsetX={[-10, 10]}
+        failOffsetY={[-5, 5]}
+      >
+        <Animated.View
+          style={[
+            styles.swipeableContent,
+            {
+              transform: [{ translateX }],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[styles.container, hasUserLeft() && styles.leftGroupContainer]}
+            onPress={handlePress}
+            activeOpacity={0.7}
+          >
       <View style={styles.avatarContainer}>
         {getChannelAvatar()}
       </View>
@@ -651,7 +765,10 @@ const ChannelListItem = memo(function ChannelListItem({
           </TouchableOpacity>
         </View>
       </Modal>
-    </TouchableOpacity>
+          </TouchableOpacity>
+        </Animated.View>
+      </PanGestureHandler>
+    </View>
   );
 }, (prevProps, nextProps) => {
   // Custom comparison function to prevent unnecessary re-renders
@@ -699,6 +816,33 @@ export default ChannelListItem;
 
 // ________________________________________STYLES________________________________________
 const styles = StyleSheet.create({
+  swipeContainer: {
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  deleteButtonContainer: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 80,
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  deleteButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  swipeableContent: {
+    backgroundColor: 'white',
+    zIndex: 2,
+  },
   container: {
     flexDirection: 'row',
     paddingHorizontal: 16,
