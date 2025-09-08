@@ -45,11 +45,11 @@ export default function UsersScreen() {
     <View style={styles.container}>
       {/* Search input with icon and clear button */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+        <Ionicons name="search" size={20} color="rgb(177, 156, 217)" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search for people to chat with..."
-          placeholderTextColor="#999"
+          placeholder="Search for people to chat"
+          placeholderTextColor="rgb(177, 156, 217)"
           value={searchQuery}
           onChangeText={setSearchQuery}
           autoCapitalize="none"
@@ -60,7 +60,7 @@ export default function UsersScreen() {
           <Ionicons 
             name="close-circle" 
             size={20} 
-            color="#666" 
+            color="rgb(177, 156, 217)" 
             style={styles.clearIcon}
             onPress={() => setSearchQuery('')}
           />
@@ -84,42 +84,44 @@ export default function UsersScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Main container styling
+  // Main container styling with light purple background
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgb(248, 245, 252)', // Very light tint of base color
   },
-  // Search input container with shadow and rounded corners
+  // Search input container with purple theme
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: 'rgb(255, 255, 255)', // Pure white for contrast
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 8,
     borderRadius: 12,
     paddingHorizontal: 16,
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgb(230, 220, 245)', // Light purple border
+    shadowColor: 'rgb(177, 156, 217)', // Base purple shadow
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
     elevation: 5,
   },
-  // Search icon positioning
+  // Search icon with purple color
   searchIcon: {
     marginRight: 12,
   },
-  // Text input styling - takes remaining space
+  // Text input styling
   searchInput: {
     flex: 1,
     paddingVertical: 15,
     fontSize: 16,
-    color: '#333',
+    color: 'rgb(89, 78, 109)', // Dark purple text
   },
-  // Clear button styling with touch padding
+  // Clear button with purple color
   clearIcon: {
     marginLeft: 8,
     padding: 4,

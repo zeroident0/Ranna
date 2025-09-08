@@ -63,6 +63,11 @@ const UserListItem = ({ user }) => {
       </View>
       <View style={styles.content}>
         <Text style={styles.name}>{user.full_name}</Text>
+        {user.bio && (
+          <Text style={styles.bio} numberOfLines={2}>
+            {user.bio}
+          </Text>
+        )}
         <Text style={styles.subtitle}>Tap to start a chat</Text>
       </View>
     </Pressable>
@@ -74,19 +79,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: 'white',
+    backgroundColor: 'rgb(255, 255, 255)',
     borderRadius: 12,
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgb(230, 220, 245)',
+    shadowColor: 'rgb(177, 156, 217)',
     shadowOffset: {
       width: 0,
       height: 1,
     },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
   },
   pressed: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgb(248, 245, 252)',
     transform: [{ scale: 0.98 }],
   },
   avatarContainer: {
@@ -112,12 +119,19 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: 'rgb(89, 78, 109)',
     marginBottom: 2,
   },
+  bio: {
+    fontSize: 13,
+    color: 'rgb(177, 156, 217)',
+    marginBottom: 4,
+    lineHeight: 16,
+  },
   subtitle: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 12,
+    color: 'rgb(177, 156, 217)',
+    fontStyle: 'italic',
   },
 });
 

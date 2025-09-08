@@ -82,44 +82,6 @@ export default function CreateGroupScreen() {
     });
   };
 
-  const testSupabaseConnection = async () => {
-    try {
-      console.log('=== SUPABASE CONNECTION TEST ===');
-      console.log('Supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL);
-      console.log('Supabase Key exists:', !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
-      console.log('Supabase Key length:', process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.length);
-      
-      if (!process.env.EXPO_PUBLIC_SUPABASE_URL || !process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) {
-        Alert.alert('Configuration Error', 'Missing Supabase environment variables. Please check your .env file.');
-        return;
-      }
-
-      // Test basic connection by trying to list buckets
-      console.log('Testing storage connection...');
-      const { data, error } = await supabase.storage.listBuckets();
-      
-      if (error) {
-        console.error('Supabase storage test failed:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
-        Alert.alert('Storage Test Failed', `Error: ${error.message}\n\nCheck your Supabase project configuration.`);
-      } else {
-        console.log('Supabase storage test successful');
-        console.log('Available buckets:', data?.map(b => b.name));
-        
-        // Check if avatars bucket exists
-        const hasAvatarsBucket = data?.some(bucket => bucket.name === 'avatars');
-        if (hasAvatarsBucket) {
-          Alert.alert('Connection Test', '✅ Supabase connection is working!\n✅ avatars bucket found');
-        } else {
-          Alert.alert('Connection Test', '✅ Supabase connection is working!\n❌ avatars bucket not found\n\nPlease create an "avatars" bucket in your Supabase project.');
-        }
-      }
-    } catch (error) {
-      console.error('Connection test error:', error);
-      console.error('Error stack:', error.stack);
-      Alert.alert('Connection Test Failed', `Network error: ${error.message}\n\nThis usually means:\n1. No internet connection\n2. Supabase URL is incorrect\n3. Firewall blocking requests`);
-    }
-  };
 
   const pickGroupImage = async () => {
     try {
@@ -320,7 +282,7 @@ export default function CreateGroupScreen() {
           <Text style={styles.userName}>{item.full_name}</Text>
         </View>
         {isSelected && (
-          <Ionicons name="checkmark-circle" size={24} color="#007AFF" />
+          <Ionicons name="checkmark-circle" size={24} color="rgb(138, 43, 226)" />
         )}
       </TouchableOpacity>
     );
@@ -369,18 +331,6 @@ export default function CreateGroupScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Group Name Input */}
-      <View style={styles.groupNameContainer}>
-        <TextInput
-          style={styles.groupNameInput}
-          placeholder="Group name"
-          placeholderTextColor="#999"
-          value={groupName}
-          onChangeText={setGroupName}
-          maxLength={50}
-        />
-      </View>
-
       {/* Group Image Picker */}
       <View style={styles.groupImageContainer}>
         <Text style={styles.groupImageTitle}>Group Photo (Optional)</Text>
@@ -402,14 +352,18 @@ export default function CreateGroupScreen() {
             <Ionicons name="close-circle" size={20} color="#ff4444" />
           </TouchableOpacity>
         )}
-        
-        {/* Debug button - remove this in production */}
-        <TouchableOpacity 
-          style={styles.debugButton} 
-          onPress={testSupabaseConnection}
-        >
-          <Text style={styles.debugButtonText}>Test Connection</Text>
-        </TouchableOpacity>
+      </View>
+
+      {/* Group Name Input */}
+      <View style={styles.groupNameContainer}>
+        <TextInput
+          style={styles.groupNameInput}
+          placeholder="Group name"
+          placeholderTextColor="#999"
+          value={groupName}
+          onChangeText={setGroupName}
+          maxLength={50}
+        />
       </View>
 
       {/* Selected Users */}
@@ -461,7 +415,7 @@ export default function CreateGroupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgb(240, 235, 250)',
   },
   header: {
     flexDirection: 'row',
@@ -469,9 +423,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    backgroundColor: 'rgb(177, 156, 217)',
   },
   headerTitle: {
     fontSize: 18,
@@ -479,7 +431,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   createButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: 'rgb(138, 43, 226)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -496,25 +448,25 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   groupNameContainer: {
-    backgroundColor: 'white',
+    backgroundColor: 'rgb(220, 210, 240)',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: 'rgb(177, 156, 217)',
   },
   groupNameInput: {
     fontSize: 16,
     color: '#000',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#007AFF',
+    borderBottomColor: 'rgb(138, 43, 226)',
   },
   selectedUsersContainer: {
-    backgroundColor: 'white',
+    backgroundColor: 'rgb(220, 210, 240)',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: 'rgb(177, 156, 217)',
   },
   selectedUsersTitle: {
     fontSize: 14,
@@ -528,7 +480,7 @@ const styles = StyleSheet.create({
   selectedUserChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'rgb(200, 180, 230)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -546,17 +498,17 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: 'rgb(220, 210, 240)',
     marginHorizontal: 16,
     marginVertical: 12,
     borderRadius: 12,
     paddingHorizontal: 16,
-    shadowColor: '#000',
+    shadowColor: 'rgb(177, 156, 217)',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 3.84,
     elevation: 5,
   },
@@ -577,24 +529,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'white',
+    backgroundColor: 'rgb(240, 235, 250)',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     marginBottom: 8,
-    shadowColor: '#000',
+    shadowColor: 'rgb(177, 156, 217)',
     shadowOffset: {
       width: 0,
       height: 1,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
   },
   selectedUserItem: {
-    backgroundColor: '#f0f8ff',
+    backgroundColor: 'rgb(200, 180, 230)',
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: 'rgb(138, 43, 226)',
   },
   userInfo: {
     flexDirection: 'row',
@@ -608,11 +560,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   groupImageContainer: {
-    backgroundColor: 'white',
+    backgroundColor: 'rgb(220, 210, 240)',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
     alignItems: 'center',
   },
   groupImageTitle: {
@@ -622,20 +572,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   groupImagePicker: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#f0f0f0',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgb(240, 235, 250)',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#e0e0e0',
+    borderColor: 'rgb(177, 156, 217)',
     borderStyle: 'dashed',
   },
   groupImagePreview: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 116,
+    height: 116,
+    borderRadius: 58,
   },
   groupImagePlaceholder: {
     alignItems: 'center',
@@ -651,18 +601,5 @@ const styles = StyleSheet.create({
     right: -5,
     backgroundColor: 'white',
     borderRadius: 10,
-  },
-  debugButton: {
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#ff9500',
-    borderRadius: 8,
-  },
-  debugButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
   },
 });

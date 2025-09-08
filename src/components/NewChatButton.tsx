@@ -1,11 +1,13 @@
-import React, { useState } from "react";
-import { TouchableOpacity, StyleSheet, Modal, View, Text, Pressable } from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import { TouchableOpacity, StyleSheet, Modal, View, Text, Pressable, Animated } from "react-native";
 import { router } from "expo-router";
 import Octicons from '@expo/vector-icons/Octicons';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 export default function NewChatButton() {
     const [showOptions, setShowOptions] = useState(false);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
     const handleNewChat = () => {
         setShowOptions(false);
@@ -16,6 +18,39 @@ export default function NewChatButton() {
         setShowOptions(false);
         router.push('/(home)/create-group');
     };
+
+    useEffect(() => {
+        if (showOptions) {
+            // Fast animation in
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 150, // Much faster than default
+                    useNativeDriver: true,
+                }),
+                Animated.spring(scaleAnim, {
+                    toValue: 1,
+                    tension: 100,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        } else {
+            // Fast animation out
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 0,
+                    duration: 100, // Even faster for closing
+                    useNativeDriver: true,
+                }),
+                Animated.timing(scaleAnim, {
+                    toValue: 0.8,
+                    duration: 100,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        }
+    }, [showOptions]);
 
     return (
         <>
@@ -30,20 +65,31 @@ export default function NewChatButton() {
             <Modal
                 visible={showOptions}
                 transparent={true}
-                animationType="fade"
+                animationType="none"
                 onRequestClose={() => setShowOptions(false)}
             >
-                <Pressable 
-                    style={styles.modalOverlay}
-                    onPress={() => setShowOptions(false)}
+                <Animated.View 
+                    style={[styles.modalOverlay, { opacity: fadeAnim }]}
                 >
-                    <View style={styles.optionsContainer}>
+                    <Pressable 
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => setShowOptions(false)}
+                    />
+                    <Animated.View 
+                        style={[
+                            styles.optionsContainer, 
+                            { 
+                                opacity: fadeAnim,
+                                transform: [{ scale: scaleAnim }]
+                            }
+                        ]}
+                    >
                         <TouchableOpacity
                             style={[styles.option, styles.newChatOption]}
                             onPress={handleNewChat}
                         >
                             <View style={styles.optionIcon}>
-                                <Ionicons name="chatbubble-outline" size={24} color="#007AFF" />
+                                <Ionicons name="chatbubble-outline" size={24} color="rgb(177, 156, 217)" />
                             </View>
                             <View style={styles.optionContent}>
                                 <Text style={styles.optionTitle}>New Chat</Text>
@@ -56,15 +102,15 @@ export default function NewChatButton() {
                             onPress={handleNewGroup}
                         >
                             <View style={styles.optionIcon}>
-                                <Ionicons name="people-outline" size={24} color="#007AFF" />
+                                <Ionicons name="people-outline" size={24} color="rgb(177, 156, 217)" />
                             </View>
                             <View style={styles.optionContent}>
                                 <Text style={styles.optionTitle}>New Group</Text>
                                 <Text style={styles.optionSubtitle}>Create a group chat with multiple people</Text>
                             </View>
                         </TouchableOpacity>
-                    </View>
-                </Pressable>
+                    </Animated.View>
+                </Animated.View>
             </Modal>
         </>
     );
@@ -126,16 +172,16 @@ const styles = StyleSheet.create({
         borderBottomWidth: 0,
     },
     newChatOption: {
-        backgroundColor: '#f0f8ff', // Light blue background
+        backgroundColor: 'rgba(177, 156, 217, 0.1)', // Light purple background
     },
     newGroupOption: {
-        backgroundColor: '#f0fff0', // Light green background
+        backgroundColor: 'rgba(177, 156, 217, 0.15)', // Slightly darker purple background
     },
     optionIcon: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+        backgroundColor: 'rgba(177, 156, 217, 0.2)',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 16,

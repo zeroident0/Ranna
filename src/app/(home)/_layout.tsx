@@ -34,6 +34,7 @@ export default function HomeLayout() {
               <Stack.Screen name="users" options={{ title: 'Users' }} />
               <Stack.Screen name="call" options={{ title: 'Audio Call' }} />
               <Stack.Screen name="channel/[cid]" options={{ title: 'Channel' }} />
+              <Stack.Screen name="create-group" options={{ headerShown: false }} />
               <Stack.Screen 
                 name="user-profile/[userId]" 
                 options={{
