@@ -16,6 +16,9 @@ import {
 import { useStreamVideoClient } from '@stream-io/video-react-native-sdk';
 import * as Crypto from 'expo-crypto';
 import { useAuth } from '../../../providers/AuthProvider';
+import { handleLeaveGroup } from '../../../utils/groupUtils';
+import { useCustomAlert } from '../../../hooks/useCustomAlert';
+import CustomAlert from '../../../components/CustomAlert';
 
 export default function ChannelScreen() {
   const [channel, setChannel] = useState<ChannelType | null>(null);
@@ -27,6 +30,7 @@ export default function ChannelScreen() {
   const { client } = useChatContext();
   const videoClient = useStreamVideoClient();
   const { user } = useAuth();
+  const { alertState, showSuccess, showError, showWarning, showInfo, showConfirm, hideAlert } = useCustomAlert();
 
   // Determine if this is a group chat
   const isGroupChat = useMemo(() => {
@@ -328,6 +332,39 @@ export default function ChannelScreen() {
     router.push(`/(home)/group-info?cid=${cid}`);
   };
 
+  // Helper function to check if current user is admin
+  const isCurrentUserAdmin = () => {
+    if (!channel || !user) return false;
+    const admins = (channel.data?.admins as string[]) || [];
+    return admins.includes(user.id);
+  };
+
+  // Helper function to check if a member is admin
+  const isMemberAdmin = (member: any) => {
+    const admins = (channel?.data?.admins as string[]) || [];
+    return admins.includes(member.user_id);
+  };
+
+  const handleLeaveGroupAction = () => {
+    if (!channel || !user) return;
+    
+    setShowDropdown(false);
+    
+    // Get current members for the leave group function
+    const members = Object.values(channel.state.members);
+    
+    handleLeaveGroup({
+      channel,
+      currentUser: user,
+      members,
+      isCurrentUserAdmin,
+      isMemberAdmin,
+      showConfirm,
+      showWarning,
+      showError,
+    });
+  };
+
   const DropdownMenu = () => {
     if (!showDropdown) return null;
 
@@ -335,14 +372,26 @@ export default function ChannelScreen() {
       <View style={styles.dropdownContainer}>
         <View style={styles.dropdownMenu}>
           {isGroupChat && (
-            <TouchableOpacity
-              style={styles.dropdownItem}
-              onPress={handleGroupInfo}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="information-circle-outline" size={20} color="#000" />
-              <Text style={styles.dropdownItemText}>Group Info</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={handleGroupInfo}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="information-circle-outline" size={20} color="#000" />
+                <Text style={styles.dropdownItemText}>Group Info</Text>
+              </TouchableOpacity>
+              {!hasUserLeft && (
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={handleLeaveGroupAction}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="exit-outline" size={20} color="#ff3b30" />
+                  <Text style={[styles.dropdownItemText, { color: '#ff3b30' }]}>Leave Group</Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
         </View>
       </View>
@@ -393,6 +442,25 @@ export default function ChannelScreen() {
         </SafeAreaView>
       </TouchableOpacity>
       <DropdownMenu />
+      
+      {/* Custom Alert */}
+      <CustomAlert
+        visible={alertState.visible}
+        title={alertState.options.title}
+        message={alertState.options.message}
+        type={alertState.options.type}
+        buttons={alertState.options.buttons}
+        onDismiss={hideAlert}
+        showCloseButton={alertState.options.showCloseButton}
+        icon={alertState.options.icon}
+        customIcon={alertState.options.customIcon}
+        animationType={alertState.options.animationType}
+        backgroundColor={alertState.options.backgroundColor}
+        overlayColor={alertState.options.overlayColor}
+        borderRadius={alertState.options.borderRadius}
+        maxWidth={alertState.options.maxWidth}
+        showIcon={alertState.options.showIcon}
+      />
     </Channel>
   );
 }
