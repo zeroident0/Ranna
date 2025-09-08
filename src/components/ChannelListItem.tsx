@@ -186,6 +186,7 @@ const ChannelListItem = memo(function ChannelListItem({
           fullName={(otherMember?.user?.name || otherMember?.user?.full_name) as string}
           size={48}
           showBorder={false}
+          userId={otherMember?.user_id}
         />
         {otherMember && isUserOnline(otherMember.user_id) && (
           <View style={styles.onlineIndicator} />

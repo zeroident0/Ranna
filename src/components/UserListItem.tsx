@@ -54,6 +54,7 @@ const UserListItem = ({ user }) => {
             fullName={user.full_name}
             size={48}
             showBorder={false}
+            userId={user.id}
           />
           {isUserOnline(user.id) && (
             <View style={styles.onlineIndicator} />

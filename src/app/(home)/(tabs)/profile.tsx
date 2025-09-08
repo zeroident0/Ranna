@@ -15,6 +15,7 @@ import { useCustomAlert } from '../../../hooks/useCustomAlert';
 import { themes } from '../../../constants/themes';
 import { useChatContext } from 'stream-chat-expo';
 import { router } from 'expo-router';
+import CacheManagement from '../../../components/CacheManagement';
 
 export default function ProfileScreen() {
   const { session } = useAuth();
@@ -279,6 +280,7 @@ export default function ProfileScreen() {
           <Avatar
             size={200}
             url={avatarUrl}
+            userId={session?.user?.id}
             onUpload={(url: string) => {
               setAvatarUrl(url);
               updateProfile({
@@ -394,7 +396,7 @@ export default function ProfileScreen() {
           <View style={styles.blockedUsersHeaderLeft}>
             <Ionicons name="ban-outline" size={22} color={themes.colors.text} />
             <Text style={styles.blockedUsersTitle}>Blocked Users</Text>
-            <Text style={styles.blockedUsersCount}>({blockedUsers.length})</Text>
+            <Text style={styles.blockedUsersCount}>{blockedUsers.length}</Text>
           </View>
           <Ionicons name="refresh" size={18} color={themes.colors.textSecondary} />
         </TouchableOpacity>
@@ -419,6 +421,7 @@ export default function ProfileScreen() {
                   fullName={block.blocked_user?.name || block.blocked_user?.full_name || block.blocked_user_id}
                   size={40}
                   style={styles.blockedUserAvatar}
+                  userId={block.blocked_user_id}
                 />
                 <View style={styles.blockedUserInfo}>
                   <Text style={styles.blockedUserName}>
@@ -453,6 +456,9 @@ export default function ProfileScreen() {
           </View>
         )}
       </View>
+
+      {/* Cache Management */}
+      {/* <CacheManagement style={styles.verticallySpaced} /> */}
 
       <View style={[styles.verticallySpaced, styles.signOutContainer]}>
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>

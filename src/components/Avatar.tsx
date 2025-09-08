@@ -4,15 +4,17 @@ import { StyleSheet, View, Alert, TouchableOpacity } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import ProfileImage from './ProfileImage';
+import ImageCacheService from '../services/ImageCacheService';
 
 interface Props {
   size: number;
   url: string | null;
   onUpload: (filePath: string) => void;
   onDelete?: () => void;
+  userId?: string; // Add userId for cache invalidation
 }
 
-export default function Avatar({ url, size = 150, onUpload, onDelete }: Props) {
+export default function Avatar({ url, size = 150, onUpload, onDelete, userId }: Props) {
   const [uploading, setUploading] = useState(false);
 
   async function uploadAvatar() {
@@ -53,6 +55,12 @@ export default function Avatar({ url, size = 150, onUpload, onDelete }: Props) {
 
       if (uploadError) {
         throw uploadError;
+      }
+
+      // Invalidate cache for this user since they uploaded a new image
+      if (userId) {
+        const cacheService = ImageCacheService.getInstance();
+        await cacheService.invalidateUserCache(userId);
       }
 
       onUpload(data.path);
@@ -98,6 +106,12 @@ export default function Avatar({ url, size = 150, onUpload, onDelete }: Props) {
                 throw error;
               }
               
+              // Invalidate cache for this user since they deleted their image
+              if (userId) {
+                const cacheService = ImageCacheService.getInstance();
+                await cacheService.invalidateUserCache(userId);
+              }
+              
               // Call the onDelete callback
               onDelete();
             } catch (error) {
@@ -122,6 +136,7 @@ export default function Avatar({ url, size = 150, onUpload, onDelete }: Props) {
         showBorder={true}
         borderColor="#007AFF"
         style={styles.avatar}
+        userId={userId}
       />
       <TouchableOpacity
         style={styles.cameraButton}

@@ -1,42 +1,72 @@
+// Navigation and routing imports
 import { Stack, router, useLocalSearchParams } from 'expo-router';
+// React hooks for state management and performance optimization
 import { useEffect, useState, useMemo, memo } from 'react';
+// React Native UI components
 import { ActivityIndicator, Text, View, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
+// Safe area handling for different device screens
 import { SafeAreaView } from 'react-native-safe-area-context';
+// Stream Chat types for channel data
 import { Channel as ChannelType } from 'stream-chat';
+// Icon library for UI icons
 import Ionicons from '@expo/vector-icons/Ionicons';
+// Custom profile image component
 import ProfileImage from '../../../components/ProfileImage';
+// Supabase client for database operations
 import { supabase } from '../../../lib/supabase';
+// App theme configuration
 import { themes } from '../../../constants/themes';
 
 // Simple cache for profile data to avoid repeated queries
 const profileCache = new Map<string, any>();
 
+// Stream Chat components for messaging functionality
 import {
   Channel,
   MessageInput,
   MessageList,
   useChatContext,
 } from 'stream-chat-expo';
+// Video calling functionality
 import { useStreamVideoClient } from '@stream-io/video-react-native-sdk';
+// Cryptographic utilities for generating unique IDs
 import * as Crypto from 'expo-crypto';
+// Authentication context provider
 import { useAuth } from '../../../providers/AuthProvider';
+// Utility function for handling group leave operations
 import { handleLeaveGroup } from '../../../utils/groupUtils';
+// Custom alert hook for showing notifications
 import { useCustomAlert } from '../../../hooks/useCustomAlert';
+// Custom alert component
 import CustomAlert from '../../../components/CustomAlert';
 
 export default function ChannelScreen() {
+  // State for the current channel data
   const [channel, setChannel] = useState<ChannelType | null>(null);
+  // State for the other participant's profile information (for 1-on-1 chats)
   const [otherParticipantProfile, setOtherParticipantProfile] = useState<any>(null);
+  // Loading state for profile data fetching
   const [isProfileLoading, setIsProfileLoading] = useState(false); // Start as false for faster initial render
+  // State to control dropdown menu visibility
   const [showDropdown, setShowDropdown] = useState(false);
+  // State to track if the other user is blocked (for 1-on-1 chats)
+  const [isBlocked, setIsBlocked] = useState(false);
+  // Loading state for block/unblock operations
+  const [blockLoading, setBlockLoading] = useState(false);
+  // Get channel ID and optional channel data from navigation params
   const { cid, channelData } = useLocalSearchParams<{ cid: string; channelData?: string }>();
 
+  // Stream Chat client for messaging operations
   const { client } = useChatContext();
+  // Video client for call functionality
   const videoClient = useStreamVideoClient();
+  // Current authenticated user data
   const { user } = useAuth();
+  // Custom alert system for notifications
   const { alertState, showSuccess, showError, showWarning, showInfo, showConfirm, hideAlert } = useCustomAlert();
 
   // Parse channel data immediately for instant header rendering
+  // This allows the header to show immediately without waiting for channel fetch
   const initialChannelData = useMemo(() => {
     if (channelData) {
       try {
@@ -50,6 +80,7 @@ export default function ChannelScreen() {
   }, [channelData]);
 
   // Determine if this is a group chat (use initial data for instant header)
+  // Groups are identified by having a name, 1-on-1 chats don't have names
   const isGroupChat = useMemo(() => {
     const channelToCheck = channel || initialChannelData;
     if (!channelToCheck) {
@@ -65,6 +96,7 @@ export default function ChannelScreen() {
   }, [channel, initialChannelData]);
 
   // Check if current user has left this group
+  // Used to show appropriate UI and disable message input
   const hasUserLeft = useMemo(() => {
     if (!user || !isGroupChat) return false;
     const channelToCheck = channel || initialChannelData;
@@ -72,6 +104,8 @@ export default function ChannelScreen() {
     return leftMembers.includes(user.id);
   }, [user, isGroupChat, channel, initialChannelData]);
 
+  // Effect to load channel data on component mount
+  // Uses passed channel data for instant loading, otherwise fetches from Stream Chat
   useEffect(() => {
     // Use passed channel data if available (instant), otherwise fetch
     if (channelData) {
@@ -104,6 +138,7 @@ export default function ChannelScreen() {
   }, [cid, channelData]);
 
   // Fetch other participant's profile from Supabase (non-blocking)
+  // This runs after initial render to avoid blocking the UI
   useEffect(() => {
     const fetchOtherParticipantProfile = async () => {
       if (!channel || !user) {
@@ -114,7 +149,7 @@ export default function ChannelScreen() {
       const otherMember = members.find(member => member.user_id !== user.id);
       
       if (otherMember?.user_id) {
-        // Check cache first
+        // Check cache first to avoid unnecessary API calls
         const cachedProfile = profileCache.get(otherMember.user_id);
         if (cachedProfile) {
           setOtherParticipantProfile(cachedProfile);
@@ -127,6 +162,7 @@ export default function ChannelScreen() {
         }
         
         try {
+          // Fetch profile data from Supabase
           const { data, error } = await supabase
             .from('profiles')
             .select('avatar_url, full_name')
@@ -134,7 +170,7 @@ export default function ChannelScreen() {
             .single();
           
           if (!error && data) {
-            // Cache the result
+            // Cache the result for future use
             profileCache.set(otherMember.user_id, data);
             setOtherParticipantProfile(data);
           }
@@ -151,6 +187,36 @@ export default function ChannelScreen() {
     return () => clearTimeout(timeoutId);
   }, [channel, user]);
 
+  // Check block status for 1-on-1 channels
+  // Only runs for direct messages, not group chats
+  useEffect(() => {
+    const checkBlockStatus = async () => {
+      if (!client || !user || isGroupChat) return;
+      
+      const members = Object.values(channel?.state.members || {});
+      const otherMember = members.find((member: any) => member.user_id !== user.id);
+      
+      if (otherMember?.user_id) {
+        try {
+          // Get list of blocked users from Stream Chat
+          const response = await client.getBlockedUsers();
+          const blocks = (response as any).blocks || [];
+          const blockedUserIds = blocks.map((block: any) => block.blocked_user_id);
+          setIsBlocked(blockedUserIds.includes(otherMember.user_id));
+        } catch (error) {
+          console.log('Error checking block status:', error);
+        }
+      }
+    };
+
+    if (channel && !isGroupChat) {
+      checkBlockStatus();
+    }
+  }, [channel, user, client, isGroupChat]);
+
+  // Get the display name for the channel
+  // For groups: uses channel name or generates from member names
+  // For 1-on-1: uses other participant's name
   const getChannelName = (): string => {
     const channelToCheck = channel || initialChannelData;
     if (!channelToCheck || !user) return 'Channel';
@@ -196,6 +262,8 @@ export default function ChannelScreen() {
     return userName || userFullName || 'Channel';
   };
 
+  // Get the other participant's profile image URL
+  // Prioritizes Stream Chat data (immediate) over Supabase data (cached)
   const getOtherParticipantImage = (): string | null => {
     const channelToCheck = channel || initialChannelData;
     if (!channelToCheck || !user) return null;
@@ -217,6 +285,8 @@ export default function ChannelScreen() {
     return null;
   };
 
+  // Get the other participant's full name
+  // Prioritizes Stream Chat data (immediate) over Supabase data (cached)
   const getOtherParticipantFullName = (): string => {
     const channelToCheck = channel || initialChannelData;
     if (!channelToCheck || !user) return '';
@@ -238,6 +308,8 @@ export default function ChannelScreen() {
     return '';
   };
 
+  // Get formatted list of group member names for display
+  // Excludes current user and left members, limits display to avoid overflow
   const getGroupMemberNames = (): string => {
     const channelToCheck = channel || initialChannelData;
     if (!channelToCheck || !user || !isGroupChat) return '';
@@ -261,6 +333,8 @@ export default function ChannelScreen() {
     }
   };
 
+  // Component to render group avatar
+  // Shows group image if available, otherwise shows first letter of group name
   const GroupAvatar = () => {
     const channelToCheck = channel || initialChannelData;
     if (!channelToCheck || !user) {
@@ -293,6 +367,9 @@ export default function ChannelScreen() {
     );
   };
 
+  // Component to render profile picture in header
+  // For groups: shows group avatar, navigates to group info
+  // For 1-on-1: shows other user's avatar, navigates to user profile
   const ProfilePicture = () => {
     // For group chats, show group avatar and make it clickable
     if (isGroupChat) {
@@ -333,6 +410,7 @@ export default function ChannelScreen() {
             fullName={fullName}
             size={32}
             showBorder={false}
+            userId={otherParticipantId}
           />
         </TouchableOpacity>
       );
@@ -344,10 +422,13 @@ export default function ChannelScreen() {
         fullName={fullName}
         size={32}
         showBorder={false}
+        userId={otherParticipantId}
       />
     );
   };
 
+  // Header left component with back button and profile picture
+  // Memoized for performance optimization
   const HeaderLeft = memo(() => {
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -362,6 +443,10 @@ export default function ChannelScreen() {
     );
   });
 
+  // Header title component showing channel name and member info
+  // For groups: shows group name and member list, navigates to group info
+  // For 1-on-1: shows user name, navigates to user profile
+  // Memoized for performance optimization
   const HeaderTitle = memo(() => {
     const channelName = getChannelName();
     const memberNames = getGroupMemberNames();
@@ -426,6 +511,8 @@ export default function ChannelScreen() {
     );
   });
 
+  // Start an audio-only call with channel members
+  // Currently disabled but ready for future implementation
   const joinCall = async () => {
     const members = Object.values(channel.state.members).map((member) => ({
       user_id: member.user_id,
@@ -458,24 +545,27 @@ export default function ChannelScreen() {
     // router.push(`/call`);
   };
 
+  // Navigate to group info screen and close dropdown
   const handleGroupInfo = () => {
     setShowDropdown(false);
     router.push(`/(home)/group-info?cid=${cid}`);
   };
 
-  // Helper function to check if current user is admin
+  // Helper function to check if current user is admin of the group
   const isCurrentUserAdmin = () => {
     if (!channel || !user) return false;
     const admins = (channel.data?.admins as string[]) || [];
     return admins.includes(user.id);
   };
 
-  // Helper function to check if a member is admin
+  // Helper function to check if a specific member is admin of the group
   const isMemberAdmin = (member: any) => {
     const admins = (channel?.data?.admins as string[]) || [];
     return admins.includes(member.user_id);
   };
 
+  // Handle leaving a group chat
+  // Uses utility function to handle the leave logic and confirmations
   const handleLeaveGroupAction = () => {
     if (!channel || !user) return;
     
@@ -496,13 +586,80 @@ export default function ChannelScreen() {
     });
   };
 
+  // Navigate to other user's profile and close dropdown
+  const handleViewProfile = () => {
+    if (!channel || !user) return;
+    
+    setShowDropdown(false);
+    
+    const members = Object.values(channel.state.members);
+    const otherMember = members.find((member: any) => member.user_id !== user.id);
+    
+    if (otherMember?.user_id) {
+      router.push(`/(home)/user-profile/${otherMember.user_id}`);
+    }
+  };
+
+  // Block the other user in a 1-on-1 chat
+  // Shows loading state and success/error messages
+  const handleBlockUser = async () => {
+    if (!client || !user || !channel) return;
+    
+    setShowDropdown(false);
+    
+    const members = Object.values(channel.state.members);
+    const otherMember = members.find((member: any) => member.user_id !== user.id);
+    
+    if (otherMember?.user_id) {
+      try {
+        setBlockLoading(true);
+        await client.blockUser(otherMember.user_id);
+        setIsBlocked(true);
+        showSuccess('Success', 'User has been blocked');
+      } catch (error) {
+        console.log('Error blocking user:', error);
+        showError('Error', 'Failed to block user');
+      } finally {
+        setBlockLoading(false);
+      }
+    }
+  };
+
+  // Unblock the other user in a 1-on-1 chat
+  // Shows loading state and success/error messages
+  const handleUnblockUser = async () => {
+    if (!client || !user || !channel) return;
+    
+    setShowDropdown(false);
+    
+    const members = Object.values(channel.state.members);
+    const otherMember = members.find((member: any) => member.user_id !== user.id);
+    
+    if (otherMember?.user_id) {
+      try {
+        setBlockLoading(true);
+        await client.unBlockUser(otherMember.user_id);
+        setIsBlocked(false);
+        showSuccess('Success', 'User has been unblocked');
+      } catch (error) {
+        console.log('Error unblocking user:', error);
+        showError('Error', 'Failed to unblock user');
+      } finally {
+        setBlockLoading(false);
+      }
+    }
+  };
+
+  // Dropdown menu component for channel options
+  // Shows different options for group chats vs 1-on-1 chats
   const DropdownMenu = () => {
     if (!showDropdown) return null;
 
     return (
       <View style={styles.dropdownContainer}>
         <View style={styles.dropdownMenu}>
-          {isGroupChat && (
+          {isGroupChat ? (
+            // Group chat options: Group Info and Leave Group
             <>
               <TouchableOpacity
                 style={styles.dropdownItem}
@@ -523,28 +680,67 @@ export default function ChannelScreen() {
                 </TouchableOpacity>
               )}
             </>
+          ) : (
+            // 1-on-1 chat options: View Profile and Block/Unblock
+            <>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={handleViewProfile}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="person-outline" size={20} color="#000" />
+                <Text style={styles.dropdownItemText}>View Profile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={isBlocked ? handleUnblockUser : handleBlockUser}
+                activeOpacity={0.7}
+                disabled={blockLoading}
+              >
+                <Ionicons 
+                  name={isBlocked ? "checkmark-circle-outline" : "ban-outline"} 
+                  size={20} 
+                  color={isBlocked ? "#34C759" : "#ff3b30"} 
+                />
+                <Text style={[
+                  styles.dropdownItemText, 
+                  { color: isBlocked ? "#34C759" : "#ff3b30" }
+                ]}>
+                  {blockLoading 
+                    ? (isBlocked ? 'Unblocking...' : 'Blocking...') 
+                    : (isBlocked ? 'Unblock User' : 'Block User')
+                  }
+                </Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </View>
     );
   };
 
-  // Render header immediately, even if channel is still loading
+  // Main render function
+  // Shows loading state while channel loads, then renders chat interface
   return (
     <>
+      {/* Status bar configuration */}
       <StatusBar backgroundColor={themes.colors.background} barStyle="light-content" />
+      
+      {/* Navigation header with custom components */}
       <Stack.Screen
         options={{
           headerTitle: () => <HeaderTitle />,
           headerLeft: () => <HeaderLeft />,
           headerRight: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {/* Dropdown menu toggle button */}
               <TouchableOpacity
                 onPress={() => setShowDropdown(!showDropdown)}
                 style={{ marginRight: 16 }}
               >
                 <Ionicons name="ellipsis-vertical" size={24} color={themes.colors.text} />
               </TouchableOpacity>
+              {/* Call button (currently disabled) */}
               {/* <TouchableOpacity onPress={joinCall}>
                 <Ionicons name="call" size={24} color={themes.colors.text} />
               </TouchableOpacity> */}
@@ -557,35 +753,46 @@ export default function ChannelScreen() {
         }}
       />
       
+      {/* Main content area */}
       {!channel ? (
+        // Loading state while channel data is being fetched
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color={themes.colors.text} />
         </View>
       ) : (
+        // Chat interface with message list and input
         <Channel channel={channel} audioRecordingEnabled>
-      <TouchableOpacity 
-        style={{ flex: 1 }} 
-        activeOpacity={1} 
-        onPress={() => setShowDropdown(false)}
-      >
-        <MessageList />
-        <SafeAreaView edges={['bottom']}>
-          {hasUserLeft ? (
-            <View style={styles.leftGroupMessageContainer}>
-              <Text style={styles.leftGroupMessage}>
-                You left this group. You can view the chat history but cannot send messages.
-              </Text>
-            </View>
-          ) : (
-            <MessageInput />
-          )}
-        </SafeAreaView>
-      </TouchableOpacity>
+          {/* Touchable area to close dropdown when tapping outside */}
+          <TouchableOpacity 
+            style={{ flex: 1 }} 
+            activeOpacity={1} 
+            onPress={() => setShowDropdown(false)}
+          >
+            {/* Message list showing chat history */}
+            <MessageList />
+            
+            {/* Message input area with safe area handling */}
+            <SafeAreaView edges={['bottom']}>
+              {hasUserLeft ? (
+                // Show message for users who have left the group
+                <View style={styles.leftGroupMessageContainer}>
+                  <Text style={styles.leftGroupMessage}>
+                    You left this group. You can view the chat history but cannot send messages.
+                  </Text>
+                </View>
+              ) : (
+                // Normal message input for active users
+                <MessageInput />
+              )}
+            </SafeAreaView>
+          </TouchableOpacity>
+          
+          {/* Dropdown menu overlay */}
           <DropdownMenu />
         </Channel>
       )}
       
-      {/* Custom Alert */}
+      {/* Custom alert system for notifications */}
       <CustomAlert
         visible={alertState.visible}
         title={alertState.options.title}
@@ -607,13 +814,16 @@ export default function ChannelScreen() {
   );
 }
 
+// Component styles
 const styles = StyleSheet.create({
+  // Dropdown menu positioning and layering
   dropdownContainer: {
     position: 'absolute',
-    top: 0,
+    top: 1,
     right: 20,
     zIndex: 1000,
   },
+  // Dropdown menu appearance with shadow and border
   dropdownMenu: {
     backgroundColor: 'white',
     paddingVertical: 4,
@@ -629,17 +839,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
+  // Individual dropdown menu item styling
   dropdownItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  // Dropdown menu item text styling
   dropdownItemText: {
     fontSize: 16,
     color: '#000',
     marginLeft: 12,
   },
+  // Container for the 'left group' message
   leftGroupMessageContainer: {
     backgroundColor: '#f8f8f8',
     paddingHorizontal: 16,
@@ -647,6 +860,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
   },
+  // Styling for the 'left group' message text
   leftGroupMessage: {
     fontSize: 14,
     color: '#666',
