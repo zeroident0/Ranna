@@ -1,6 +1,6 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, useMemo } from 'react';
-import { ActivityIndicator, Text, View, TouchableOpacity } from 'react-native';
+import { ActivityIndicator, Text, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Channel as ChannelType } from 'stream-chat';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -21,6 +21,7 @@ export default function ChannelScreen() {
   const [channel, setChannel] = useState<ChannelType | null>(null);
   const [otherParticipantProfile, setOtherParticipantProfile] = useState<any>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
+  const [showDropdown, setShowDropdown] = useState(false);
   const { cid } = useLocalSearchParams<{ cid: string }>();
 
   const { client } = useChatContext();
@@ -31,8 +32,18 @@ export default function ChannelScreen() {
   const isGroupChat = useMemo(() => {
     if (!channel) return false;
     // Groups are identified by having a name (1-on-1 chats don't have names)
-    return !!channel.data?.name;
+    if (!channel.data?.name) return false;
+    
+    // If it has a name, it's a group regardless of member count
+    return true;
   }, [channel]);
+
+  // Check if current user has left this group
+  const hasUserLeft = useMemo(() => {
+    if (!user || !isGroupChat) return false;
+    const leftMembers = channel?.data?.left_members as string[] || [];
+    return leftMembers.includes(user.id);
+  }, [user, isGroupChat, channel]);
 
   useEffect(() => {
     const fetchChannel = async () => {
@@ -81,22 +92,33 @@ export default function ChannelScreen() {
     
     // For group chats, use the channel name or generate one
     if (isGroupChat) {
+      let baseName = '';
       if (channel.data?.name) {
-        return channel.data.name;
-      }
-      
-      // Generate a name from member names
-      const members = Object.values(channel.state.members);
-      const otherMembers = members.filter(member => member.user_id !== user.id);
-      const memberNames = otherMembers.map(member => 
-        member.user?.name || member.user?.full_name || 'Unknown'
-      );
-      
-      if (memberNames.length <= 2) {
-        return memberNames.join(', ');
+        baseName = channel.data.name;
       } else {
-        return `${memberNames.slice(0, 2).join(', ')} and ${memberNames.length - 2} others`;
+        // Generate a name from member names (exclude left members)
+        const leftMembers = channel.data?.left_members as string[] || [];
+        const members = Object.values(channel.state.members);
+        const activeOtherMembers = members.filter(member => 
+          member.user_id !== user.id && !leftMembers.includes(member.user_id)
+        );
+        const memberNames = activeOtherMembers.map(member => 
+          member.user?.name || member.user?.full_name || 'Unknown'
+        );
+        
+        if (memberNames.length <= 2) {
+          baseName = memberNames.join(', ');
+        } else {
+          baseName = `${memberNames.slice(0, 2).join(', ')} and ${memberNames.length - 2} others`;
+        }
       }
+      
+      // Add indicator if user has left
+      if (hasUserLeft) {
+        return `${baseName} (Left)`;
+      }
+      
+      return baseName;
     }
     
     // For 1-on-1 chats, use the other participant's name
@@ -139,6 +161,28 @@ export default function ChannelScreen() {
     return otherMember?.user?.full_name as string || '';
   };
 
+  const getGroupMemberNames = (): string => {
+    if (!channel || !user || !isGroupChat) return '';
+    
+    // Exclude left members when showing member names
+    const leftMembers = channel.data?.left_members as string[] || [];
+    const members = Object.values(channel.state.members);
+    // Filter out the current user and left members
+    const activeOtherMembers = members.filter(member => 
+      member.user_id !== user.id && !leftMembers.includes(member.user_id)
+    );
+    const memberNames = activeOtherMembers.map(member => 
+      member.user?.name || member.user?.full_name || 'Unknown'
+    );
+    
+    // Join member names with commas, but limit to first 3-4 names to avoid overflow
+    if (memberNames.length <= 4) {
+      return memberNames.join(', ');
+    } else {
+      return `${memberNames.slice(0, 3).join(', ')} and ${memberNames.length - 3} others`;
+    }
+  };
+
   const GroupAvatar = () => {
     if (!channel || !user) {
       return (
@@ -158,69 +202,15 @@ export default function ChannelScreen() {
       );
     }
 
-    // Fallback to member avatars if no group image
-    const members = Object.values(channel.state.members);
-    const otherMembers = members.filter(member => member.user_id !== user.id);
-    const displayMembers = otherMembers.slice(0, 3); // Show max 3 avatars
-
-    if (displayMembers.length === 0) {
-      return (
-        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#e0e0e0' }} />
-      );
-    }
-
-    if (displayMembers.length === 1) {
-      const member = displayMembers[0];
-      return (
-            <ProfileImage
-              avatarUrl={member.user?.image as string}
-              fullName={(member.user?.name || member.user?.full_name) as string}
-              size={32}
-              showBorder={false}
-            />
-      );
-    }
-
-    // Multiple members - show overlapping avatars
+    // Fallback to group's first letter if no group image (same as ChannelListItem)
+    const groupName = getChannelName();
     return (
-      <View style={{ width: 32, height: 32, flexDirection: 'row' }}>
-        {displayMembers.slice(0, 2).map((member, index) => (
-          <View
-            key={member.user_id}
-            style={{
-              position: 'absolute',
-              left: index * 12,
-              zIndex: 2 - index,
-            }}
-          >
-            <ProfileImage
-              avatarUrl={member.user?.image as string}
-              fullName={(member.user?.name || member.user?.full_name) as string}
-              size={24}
-              showBorder={false}
-            />
-          </View>
-        ))}
-        {otherMembers.length > 2 && (
-          <View
-            style={{
-              position: 'absolute',
-              left: 24,
-              width: 24,
-              height: 24,
-              borderRadius: 12,
-              backgroundColor: '#007AFF',
-              justifyContent: 'center',
-              alignItems: 'center',
-              zIndex: 0,
-            }}
-          >
-            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
-              +{otherMembers.length - 2}
-            </Text>
-          </View>
-        )}
-      </View>
+      <ProfileImage
+        avatarUrl={null}
+        fullName={groupName}
+        size={32}
+        showBorder={false}
+      />
     );
   };
 
@@ -232,9 +222,16 @@ export default function ChannelScreen() {
       );
     }
     
-    // For group chats, show group avatar
+    // For group chats, show group avatar and make it clickable
     if (isGroupChat) {
-      return <GroupAvatar />;
+      return (
+        <TouchableOpacity 
+          onPress={() => router.push(`/(home)/group-info?cid=${cid}`)}
+          activeOpacity={0.7}
+        >
+          <GroupAvatar />
+        </TouchableOpacity>
+      );
     }
     
     // For 1-on-1 chats, show other participant's avatar
@@ -273,9 +270,37 @@ export default function ChannelScreen() {
   };
 
   const HeaderTitle = () => {
+    const channelName = getChannelName();
+    const memberNames = getGroupMemberNames();
+    
+    if (isGroupChat && memberNames) {
+      return (
+        <TouchableOpacity 
+          style={{ marginLeft: 8, flex: 1 }}
+          onPress={() => router.push(`/(home)/group-info?cid=${cid}`)}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 17, fontWeight: '600', color: '#000000' }}>
+            {channelName}
+          </Text>
+          <Text 
+            style={{ 
+              fontSize: 13, 
+              color: '#666666', 
+              marginTop: 1
+            }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {memberNames}
+          </Text>
+        </TouchableOpacity>
+      );
+    }
+    
     return (
       <Text style={{ marginLeft: 8, fontSize: 17, fontWeight: '600' }}>
-        {getChannelName()}
+        {channelName}
       </Text>
     );
   };
@@ -298,6 +323,32 @@ export default function ChannelScreen() {
     // router.push(`/call`);
   };
 
+  const handleGroupInfo = () => {
+    setShowDropdown(false);
+    router.push(`/(home)/group-info?cid=${cid}`);
+  };
+
+  const DropdownMenu = () => {
+    if (!showDropdown) return null;
+
+    return (
+      <View style={styles.dropdownContainer}>
+        <View style={styles.dropdownMenu}>
+          {isGroupChat && (
+            <TouchableOpacity
+              style={styles.dropdownItem}
+              onPress={handleGroupInfo}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="information-circle-outline" size={20} color="#000" />
+              <Text style={styles.dropdownItemText}>Group Info</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   if (!channel) {
     return <ActivityIndicator />;
   }
@@ -310,14 +361,12 @@ export default function ChannelScreen() {
           headerLeft: () => <HeaderLeft />,
           headerRight: () => (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {isGroupChat && (
-                <TouchableOpacity
-                  onPress={() => router.push(`/(home)/group-info?cid=${cid}`)}
-                  style={{ marginRight: 16 }}
-                >
-                  <Ionicons name="information-circle-outline" size={24} color="gray" />
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                onPress={() => setShowDropdown(!showDropdown)}
+                style={{ marginRight: 16 }}
+              >
+                <Ionicons name="ellipsis-vertical" size={24} color="gray" />
+              </TouchableOpacity>
               <TouchableOpacity onPress={joinCall}>
                 <Ionicons name="call" size={24} color="gray" />
               </TouchableOpacity>
@@ -325,10 +374,73 @@ export default function ChannelScreen() {
           ),
         }}
       />
-      <MessageList />
-      <SafeAreaView edges={['bottom']}>
-        <MessageInput />
-      </SafeAreaView>
+      <TouchableOpacity 
+        style={{ flex: 1 }} 
+        activeOpacity={1} 
+        onPress={() => setShowDropdown(false)}
+      >
+        <MessageList />
+        <SafeAreaView edges={['bottom']}>
+          {hasUserLeft ? (
+            <View style={styles.leftGroupMessageContainer}>
+              <Text style={styles.leftGroupMessage}>
+                You left this group. You can view the chat history but cannot send messages.
+              </Text>
+            </View>
+          ) : (
+            <MessageInput />
+          )}
+        </SafeAreaView>
+      </TouchableOpacity>
+      <DropdownMenu />
     </Channel>
   );
 }
+
+const styles = StyleSheet.create({
+  dropdownContainer: {
+    position: 'absolute',
+    top: 0,
+    right: 20,
+    zIndex: 1000,
+  },
+  dropdownMenu: {
+    backgroundColor: 'white',
+    paddingVertical: 4,
+    minWidth: 160,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  dropdownItemText: {
+    fontSize: 16,
+    color: '#000',
+    marginLeft: 12,
+  },
+  leftGroupMessageContainer: {
+    backgroundColor: '#f8f8f8',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  leftGroupMessage: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+});

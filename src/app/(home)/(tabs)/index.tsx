@@ -35,6 +35,8 @@ export default function MainTabScreen() {
 
   // Create filter based on channel type selection
   const getChannelFilter = useCallback(() => {
+    // For now, use a simple filter and handle left groups in the component
+    // Stream Chat's filter API has limitations with complex queries
     const baseFilter = {
       members: { $in: [user?.id] },
     };

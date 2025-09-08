@@ -34,28 +34,56 @@ const ChannelListItem = memo(function ChannelListItem({
   // Determine if this is a group chat
   const isGroupChat = () => {
     // Groups are identified by having a name (1-on-1 chats don't have names)
-    return !!channel.data?.name;
+    if (!channel.data?.name) return false;
+    
+    // Also check if it was originally a group by counting active members
+    const leftMembers = channel.data?.left_members as string[] || [];
+    const activeMembers = Object.values(channel.state.members).filter(member => 
+      !leftMembers.includes(member.user_id)
+    );
+    
+    // If there are 2 or more active members, it's still a group
+    // If there's only 1 active member, it should still be considered a group if it has a name
+    return true; // If it has a name, it's a group regardless of member count
+  };
+
+  // Check if current user has left this group
+  const hasUserLeft = () => {
+    if (!user || !isGroupChat()) return false;
+    const leftMembers = channel.data?.left_members as string[] || [];
+    return leftMembers.includes(user.id);
   };
 
   // Get channel name
   const getChannelName = (): string => {
     if (isGroupChat()) {
+      let baseName = '';
       if (channel.data?.name) {
-        return channel.data.name;
-      }
-      
-      // Generate a name from member names
-      const members = Object.values(channel.state.members);
-      const otherMembers = members.filter(member => member.user_id !== user?.id);
-      const memberNames = otherMembers.map(member => 
-        member.user?.name || member.user?.full_name || 'Unknown'
-      );
-      
-      if (memberNames.length <= 2) {
-        return memberNames.join(', ');
+        baseName = channel.data.name;
       } else {
-        return `${memberNames.slice(0, 2).join(', ')} and ${memberNames.length - 2} others`;
+        // Generate a name from member names (exclude left members)
+        const leftMembers = channel.data?.left_members as string[] || [];
+        const members = Object.values(channel.state.members);
+        const activeOtherMembers = members.filter(member => 
+          member.user_id !== user?.id && !leftMembers.includes(member.user_id)
+        );
+        const memberNames = activeOtherMembers.map(member => 
+          member.user?.name || member.user?.full_name || 'Unknown'
+        );
+        
+        if (memberNames.length <= 2) {
+          baseName = memberNames.join(', ');
+        } else {
+          baseName = `${memberNames.slice(0, 2).join(', ')} and ${memberNames.length - 2} others`;
+        }
       }
+      
+      // Add indicator if user has left
+      if (hasUserLeft()) {
+        return `${baseName} (Left)`;
+      }
+      
+      return baseName;
     }
     
     // For 1-on-1 chats, use the other participant's name
@@ -297,7 +325,14 @@ const ChannelListItem = memo(function ChannelListItem({
   // Get member count for group chats
   const getMemberCount = (): string | null => {
     if (!isGroupChat()) return null;
-    const memberCount = Object.keys(channel.state.members).length;
+    
+    // Count only active members (exclude left members)
+    const leftMembers = channel.data?.left_members as string[] || [];
+    const activeMembers = Object.values(channel.state.members).filter(member => 
+      !leftMembers.includes(member.user_id)
+    );
+    
+    const memberCount = activeMembers.length;
     return `${memberCount} members`;
   };
 
@@ -402,7 +437,7 @@ const ChannelListItem = memo(function ChannelListItem({
   // ________________________________________RENDER________________________________________
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[styles.container, hasUserLeft() && styles.leftGroupContainer]}
       onPress={handlePress}
       activeOpacity={0.7}
     >
@@ -412,7 +447,7 @@ const ChannelListItem = memo(function ChannelListItem({
       
       <View style={styles.contentContainer}>
         <View style={styles.headerRow}>
-          <Text style={styles.channelName} numberOfLines={1}>
+          <Text style={[styles.channelName, hasUserLeft() && styles.leftGroupName]} numberOfLines={1}>
             {getChannelName()}
           </Text>
           <View style={styles.metaContainer}>
@@ -758,5 +793,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     flex: 1,
+  },
+  leftGroupContainer: {
+    opacity: 0.6,
+    backgroundColor: '#f8f8f8',
+  },
+  leftGroupName: {
+    color: '#999',
+    fontStyle: 'italic',
   },
 });
