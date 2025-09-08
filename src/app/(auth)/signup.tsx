@@ -16,25 +16,41 @@ AppState.addEventListener('change', (state) => {
   }
 });
 
-export default function Login() {
+export default function SignUp() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function signInWithEmail() {
+  async function signUpWithEmail() {
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters long');
+      return;
+    }
+
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.signUp({
       email: email,
       password: password,
     });
 
     if (error) Alert.alert('Error', error.message);
+    if (!session)
+      Alert.alert('Success', 'Please check your inbox for email verification!');
     setLoading(false);
   }
 
   return (
     <View style={styles.container}>
-      <Text h3 style={styles.title}>Welcome Back</Text>
+      <Text h3 style={styles.title}>Create Account</Text>
       
       <View style={[styles.verticallySpaced, styles.mt20]}>
         <Input
@@ -55,25 +71,37 @@ export default function Login() {
           onChangeText={(text) => setPassword(text)}
           value={password}
           secureTextEntry={true}
-          placeholder="Password"
+          placeholder="Password (min 6 characters)"
+          autoCapitalize={'none'}
+        />
+      </View>
+      
+      <View style={styles.verticallySpaced}>
+        <Input
+          label="Confirm Password"
+          leftIcon={{ type: 'font-awesome', name: 'lock' }}
+          onChangeText={(text) => setConfirmPassword(text)}
+          value={confirmPassword}
+          secureTextEntry={true}
+          placeholder="Confirm Password"
           autoCapitalize={'none'}
         />
       </View>
       
       <View style={[styles.verticallySpaced, styles.mt20]}>
         <Button
-          title="Sign In"
+          title="Sign Up"
           disabled={loading}
-          onPress={() => signInWithEmail()}
+          onPress={() => signUpWithEmail()}
           buttonStyle={styles.primaryButton}
         />
       </View>
       
       <View style={styles.verticallySpaced}>
         <Text style={styles.linkText}>
-          Don't have an account?{' '}
-          <Link href="/(auth)/signup" style={styles.link}>
-            Sign Up
+          Already have an account?{' '}
+          <Link href="/(auth)/login" style={styles.link}>
+            Sign In
           </Link>
         </Text>
       </View>
