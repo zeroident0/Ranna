@@ -231,7 +231,7 @@ export default function MainTabScreen() {
                 <Ionicons 
                   name={showFilters ? "filter" : "filter-outline"} 
                   size={24} 
-                  color="#FFFFFF" 
+                  color="rgb(177, 156, 217)" 
                 />
               </TouchableOpacity>
               <TouchableOpacity
@@ -341,7 +341,7 @@ export default function MainTabScreen() {
           <SafeAreaView style={[styles.searchContainer, !searchQuery.trim() && styles.searchContainerTransparent]} edges={['bottom']}>
             {/* Search Input */}
             <View style={styles.searchInputContainer}>
-              <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+              <Ionicons name="search" size={20} color="rgb(177, 156, 217)" style={styles.searchIcon} />
               <TextInput
                 style={styles.searchInput}
                 placeholder={`Search ${activeTab}...`}
@@ -354,7 +354,7 @@ export default function MainTabScreen() {
               />
               {searchQuery.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQuery('')}>
-                  <Ionicons name="close-circle" size={20} color="#666" />
+                  <Ionicons name="close-circle" size={20} color="rgb(177, 156, 217)" />
                 </TouchableOpacity>
               )}
             </View>
@@ -432,6 +432,12 @@ const styles = StyleSheet.create({
   filterButton: {
     padding: 8,
     marginRight: 4,
+    backgroundColor: 'rgba(177, 156, 217, 0.1)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   searchButton: {
     padding: 8,
@@ -462,6 +468,12 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 8,
     marginRight: 8,
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   channelListContainer: {
     flex: 1,
@@ -500,6 +512,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderRadius: 12,
     paddingHorizontal: 16,
+    borderWidth: 2,
+    borderColor: 'rgb(177, 156, 217)',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -511,6 +525,7 @@ const styles = StyleSheet.create({
   },
   searchIcon: {
     marginRight: 12,
+    color: 'rgb(177, 156, 217)',
   },
   searchInput: {
     flex: 1,
@@ -533,7 +548,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   activeTab: {
-    backgroundColor: '#007AFF',
+    backgroundColor: 'rgb(177, 156, 217)',
   },
   tabText: {
     fontSize: 16,
@@ -609,6 +624,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderRadius: 12,
     padding: 4,
+    borderWidth: 2,
+    borderColor: 'rgb(177, 156, 217)',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -625,7 +642,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   activeFilterTab: {
-    backgroundColor: '#007AFF',
+    backgroundColor: 'rgb(177, 156, 217)',
   },
   filterTabText: {
     fontSize: 16,

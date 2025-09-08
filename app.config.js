@@ -1,15 +1,15 @@
 export default ({ config }) => ({
   ...config,
-  name: "Ranna",
-  slug: "Ranna",
+  name: "Tanna",
+  slug: "Tanna",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "light",
   splash: {
-    image: "./assets/splash.png",
+    image: "./assets/icone.png",
     resizeMode: "contain",
-    backgroundColor: "#ffffff"
+    backgroundColor: "rgb(177, 156, 217)"
   },
   assetBundlePatterns: ["**/*"],
   scheme: "ranna",
