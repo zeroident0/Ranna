@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Text, StatusBar } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Text, StatusBar, Alert } from 'react-native';
 import { Button, Input } from 'react-native-elements';
 import { Session } from '@supabase/supabase-js';
 import { useAuth } from '../../../providers/AuthProvider';
-import Avatar from '../../../components/Avatar';
 import ProfileImage from '../../../components/ProfileImage';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import ImageCacheService from '../../../services/ImageCacheService';
 import SocialBadge, { SocialBadgeList } from '../../../components/SocialBadge';
 import { AddLinkButtons } from '../../../components/AddLinkButton';
 import { extractAllSocialMediaLinks, SocialMediaInfo } from '../../../utils/socialMediaDetector';
@@ -31,6 +32,7 @@ export default function ProfileScreen() {
   const [websiteInput, setWebsiteInput] = useState('');
   const [blockedUsers, setBlockedUsers] = useState<any[]>([]);
   const [blockedUsersLoading, setBlockedUsersLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (session) {
@@ -246,6 +248,120 @@ export default function ProfileScreen() {
     // For now, we'll just show the list inline
   };
 
+  async function uploadAvatar() {
+    try {
+      setUploading(true);
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: false,
+        allowsEditing: true,
+        quality: 1,
+        exif: false,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        console.log('User cancelled image picker.');
+        return;
+      }
+
+      const image = result.assets[0];
+      console.log('Got image', image);
+
+      if (!image.uri) {
+        throw new Error('No image uri!');
+      }
+
+      const arraybuffer = await fetch(image.uri).then((res) =>
+        res.arrayBuffer()
+      );
+
+      const fileExt = image.uri?.split('.').pop()?.toLowerCase() ?? 'jpeg';
+      const path = `${Date.now()}.${fileExt}`;
+      const { data, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, arraybuffer, {
+          contentType: image.mimeType ?? 'image/jpeg',
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Invalidate cache for this user since they uploaded a new image
+      if (session?.user?.id) {
+        const cacheService = ImageCacheService.getInstance();
+        await cacheService.invalidateUserCache(session.user.id);
+      }
+
+      setAvatarUrl(data.path);
+      updateProfile({
+        website,
+        avatar_url: data.path,
+        full_name: fullName,
+        bio,
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        showError('Error', error.message);
+      } else {
+        throw error;
+      }
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function deleteAvatar() {
+    if (!avatarUrl) return;
+    
+    showConfirm(
+      'Delete Avatar',
+      'Are you sure you want to delete your avatar?',
+      async () => {
+        try {
+          setUploading(true);
+          
+          // Extract the file path from the URL
+          const urlParts = avatarUrl.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          
+          // Delete from storage
+          const { error } = await supabase.storage
+            .from('avatars')
+            .remove([fileName]);
+          
+          if (error) {
+            throw error;
+          }
+          
+          // Invalidate cache for this user since they deleted their image
+          if (session?.user?.id) {
+            const cacheService = ImageCacheService.getInstance();
+            await cacheService.invalidateUserCache(session.user.id);
+          }
+          
+          setAvatarUrl('');
+          updateProfile({
+            website,
+            avatar_url: '',
+            full_name: fullName,
+            bio,
+          });
+        } catch (error) {
+          if (error instanceof Error) {
+            showError('Error', error.message);
+          }
+        } finally {
+          setUploading(false);
+        }
+      },
+      undefined,
+      'Delete',
+      'Cancel'
+    );
+  }
+
 
   // Debug logging
   console.log('🔍 Profile: Render state:', {
@@ -277,29 +393,41 @@ export default function ProfileScreen() {
       <StatusBar backgroundColor={themes.colors.background} barStyle="light-content" />
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <View style={{ alignItems: 'center' }}>
-          <Avatar
-            size={200}
-            url={avatarUrl}
-            userId={session?.user?.id}
-            onUpload={(url: string) => {
-              setAvatarUrl(url);
-              updateProfile({
-                website,
-                avatar_url: url,
-                full_name: fullName,
-                bio,
-              });
-            }}
-            onDelete={() => {
-              setAvatarUrl('');
-              updateProfile({
-                website,
-                avatar_url: '',
-                full_name: fullName,
-                bio,
-              });
-            }}
-          />
+          <View style={styles.avatarContainer}>
+            <ProfileImage
+              avatarUrl={avatarUrl}
+              fullName={fullName}
+              size={200}
+              showBorder={true}
+              borderColor="#007AFF"
+              style={styles.avatar}
+              userId={session?.user?.id}
+            />
+            <TouchableOpacity
+              style={styles.cameraButton}
+              onPress={uploadAvatar}
+              disabled={uploading}
+            >
+              <Ionicons 
+                name={uploading ? "hourglass" : "camera"} 
+                size={28} 
+                color="#fff" 
+              />
+            </TouchableOpacity>
+            {avatarUrl && (
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={deleteAvatar}
+                disabled={uploading}
+              >
+                <Ionicons 
+                  name="trash" 
+                  size={20} 
+                  color="#fff" 
+                />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
       {/* Social Media Badges */}
@@ -743,5 +871,54 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     flex: 1,
     fontWeight: '500',
+  },
+  avatarContainer: {
+    position: 'relative',
+    alignSelf: 'center',
+  },
+  avatar: {
+    maxWidth: '100%',
+  },
+  cameraButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#007AFF',
+    borderRadius: 25,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  deleteButton: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    backgroundColor: '#FF4444',
+    borderRadius: 20,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });
