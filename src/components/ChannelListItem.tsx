@@ -10,6 +10,7 @@ import { usePresence } from '../hooks/usePresence';
 import { formatTimestamp } from '../utils/formatTimestamp';
 import { useChatContext } from 'stream-chat-expo';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import { deleteChat } from '../utils/deleteChatUtils';
 
 // ________________________________________INTERFACES________________________________________
 interface ChannelListItemProps {
@@ -466,40 +467,20 @@ const ChannelListItem = memo(function ChannelListItem({
     setSelectedImageName('');
   };
 
-  // Delete channel functionality
-  const handleDeleteChannel = async () => {
-    if (!client || !user) return;
-
-    Alert.alert(
-      'Delete Channel',
-      'Are you sure you want to delete this channel? This action cannot be undone.',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // For group chats, remove the user from the channel
-              if (isGroupChat()) {
-                await channel.removeMembers([user.id]);
-              } else {
-                // For 1-on-1 chats, hide the channel
-                await channel.hide();
-              }
-              
-              // Close the swipe if it was open
-              closeSwipe();
-            } catch (error) {
-              console.error('Error deleting channel:', error);
-              Alert.alert('Error', 'Failed to delete channel. Please try again.');
-            }
-          },
-        },
-      ]
+  // Delete channel functionality using reusable function
+  const handleDeleteChannel = () => {
+    deleteChat(
+      channel,
+      user,
+      isGroupChat,
+      () => {
+        // Success callback - close the swipe if it was open
+        closeSwipe();
+      },
+      (error) => {
+        // Error callback - error is already handled in the utility function
+        console.error('Delete chat error:', error);
+      }
     );
   };
 

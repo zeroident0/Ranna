@@ -35,6 +35,8 @@ import * as Crypto from 'expo-crypto';
 import { useAuth } from '../../../providers/AuthProvider';
 // Utility function for handling group leave operations
 import { handleLeaveGroup } from '../../../utils/groupUtils';
+// Utility function for handling chat deletion
+import { deleteChat } from '../../../utils/deleteChatUtils';
 // Custom alert hook for showing notifications
 import { useCustomAlert } from '../../../hooks/useCustomAlert';
 // Custom alert component
@@ -650,6 +652,28 @@ export default function ChannelScreen() {
     }
   };
 
+  // Handle deleting the chat using reusable function
+  const handleDeleteChat = () => {
+    if (!channel || !user) return;
+    
+    setShowDropdown(false);
+    
+    deleteChat(
+      channel,
+      user,
+      () => isGroupChat,
+      () => {
+        // Success callback - navigate back to home
+        showSuccess('Success', 'Chat deleted successfully');
+        router.back();
+      },
+      (error) => {
+        // Error callback - show error message
+        showError('Error', error);
+      }
+    );
+  };
+
   // Dropdown menu component for channel options
   // Shows different options for group chats vs 1-on-1 chats
   const DropdownMenu = () => {
@@ -659,7 +683,7 @@ export default function ChannelScreen() {
       <View style={styles.dropdownContainer}>
         <View style={styles.dropdownMenu}>
           {isGroupChat ? (
-            // Group chat options: Group Info and Leave Group
+            // Group chat options: Group Info, Leave Group, and Delete Chat
             <>
               <TouchableOpacity
                 style={styles.dropdownItem}
@@ -679,9 +703,17 @@ export default function ChannelScreen() {
                   <Text style={[styles.dropdownItemText, { color: '#ff3b30' }]}>Leave Group</Text>
                 </TouchableOpacity>
               )}
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={handleDeleteChat}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={20} color="#ff3b30" />
+                <Text style={[styles.dropdownItemText, { color: '#ff3b30' }]}>Delete Chat</Text>
+              </TouchableOpacity>
             </>
           ) : (
-            // 1-on-1 chat options: View Profile and Block/Unblock
+            // 1-on-1 chat options: View Profile, Block/Unblock, and Delete Chat
             <>
               <TouchableOpacity
                 style={styles.dropdownItem}
@@ -711,6 +743,14 @@ export default function ChannelScreen() {
                     : (isBlocked ? 'Unblock User' : 'Block User')
                   }
                 </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.dropdownItem}
+                onPress={handleDeleteChat}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={20} color="#ff3b30" />
+                <Text style={[styles.dropdownItemText, { color: '#ff3b30' }]}>Delete Chat</Text>
               </TouchableOpacity>
             </>
           )}
