@@ -34,8 +34,8 @@ export default function MainTabScreen() {
     return !!channel.data?.name;
   };
 
-  // Create filter based on channel type selection
-  const getChannelFilter = useCallback(() => {
+  // Create filter based on channel type selection - memoized to prevent unnecessary recalculations
+  const channelFilterValue = useMemo(() => {
     // For now, use a simple filter and handle left groups in the component
     // Stream Chat's filter API has limitations with complex queries
     const baseFilter = {
@@ -273,8 +273,7 @@ export default function MainTabScreen() {
       {!showSearch && (
         <View style={[styles.channelListContainer, showSearch && styles.channelListWithSearch]}>
           <ChannelList
-            key={channelFilter} // Force re-render when filter changes
-            filters={getChannelFilter()}
+            filters={channelFilterValue}
             sort={{ updated_at: -1 }}
             options={{ limit: 20 }}
             onSelect={(channel) => {

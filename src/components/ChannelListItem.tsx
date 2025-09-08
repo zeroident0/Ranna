@@ -617,6 +617,46 @@ const ChannelListItem = memo(function ChannelListItem({
       </Modal>
     </TouchableOpacity>
   );
+}, (prevProps, nextProps) => {
+  // Custom comparison function to prevent unnecessary re-renders
+  // Only re-render if the channel data that affects the display has changed
+  const prevChannel = prevProps.channel;
+  const nextChannel = nextProps.channel;
+  
+  // Check if channel ID changed
+  if (prevChannel.cid !== nextChannel.cid) return false;
+  
+  // Check if search-related props changed
+  if (prevProps.searchQuery !== nextProps.searchQuery) return false;
+  if (prevProps.isSearchResult !== nextProps.isSearchResult) return false;
+  if (prevProps.matchingMessages !== nextProps.matchingMessages) return false;
+  
+  // Check if channel data that affects display changed
+  if (prevChannel.data?.name !== nextChannel.data?.name) return false;
+  if (prevChannel.data?.image !== nextChannel.data?.image) return false;
+  if (prevChannel.data?.left_members !== nextChannel.data?.left_members) return false;
+  
+  // Check if last message changed (for preview text)
+  const prevLastMessage = prevChannel.state.messages[prevChannel.state.messages.length - 1];
+  const nextLastMessage = nextChannel.state.messages[nextChannel.state.messages.length - 1];
+  if (prevLastMessage?.id !== nextLastMessage?.id) return false;
+  if (prevLastMessage?.text !== nextLastMessage?.text) return false;
+  if (prevLastMessage?.created_at !== nextLastMessage?.created_at) return false;
+  
+  // Check if unread count changed
+  if (prevChannel.state.unreadCount !== nextChannel.state.unreadCount) return false;
+  
+  // Check if last message timestamp changed
+  if (prevChannel.state.last_message_at !== nextChannel.state.last_message_at) return false;
+  
+  // Check if members changed (for online status and group info)
+  const prevMembers = Object.keys(prevChannel.state.members);
+  const nextMembers = Object.keys(nextChannel.state.members);
+  if (prevMembers.length !== nextMembers.length) return false;
+  if (!prevMembers.every(memberId => nextMembers.includes(memberId))) return false;
+  
+  // If all checks pass, don't re-render
+  return true;
 });
 
 export default ChannelListItem;
