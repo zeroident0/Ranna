@@ -148,35 +148,73 @@ export default function GroupInfoScreen() {
   useEffect(() => {
     const fetchChannel = async () => {
       try {
-        const channels = await client.queryChannels({ cid });
-        const channelData = channels[0];
-        setChannel(channelData);
-        setNewGroupName(channelData?.data?.name || '');
+        // First try queryChannels (works for channels user is member of)
+        let channelData = null;
+        try {
+          const channels = await client.queryChannels({ cid });
+          if (channels.length > 0) {
+            channelData = channels[0];
+          }
+        } catch (queryError) {
+          console.log('QueryChannels failed, trying direct channel access:', queryError);
+        }
         
-        // Get member details (exclude left members)
-        const leftMembers = channelData.data?.left_members as string[] || [];
-        const allMembers = Object.values(channelData.state.members);
-        const activeMembers = allMembers.filter(member => 
-          !leftMembers.includes(member.user_id)
-        );
-        setMembers(activeMembers);
+        // If queryChannels fails, try to get channel by CID
+        if (!channelData) {
+          try {
+            const [channelType, channelId] = cid?.split(':') || ['messaging', ''];
+            const channelInstance = client.channel(channelType, channelId);
+            
+            // Try to watch the channel to get full data
+            try {
+              await channelInstance.watch();
+              channelData = channelInstance;
+            } catch (watchError) {
+              // If watch fails, try to query the channel
+              console.log('Watch failed, trying query:', watchError);
+              try {
+                channelData = await channelInstance.query();
+              } catch (queryError) {
+                console.log('Query failed, using minimal channel:', queryError);
+                channelData = channelInstance;
+              }
+            }
+          } catch (directError) {
+            console.log('Direct channel access failed:', directError);
+          }
+        }
         
-        // Fetch all users for adding members
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('*')
-          .neq('id', currentUser.id);
-        
-        // Filter out users who are already active members
-        const existingMemberIds = activeMembers.map(member => member.user_id);
-        const availableUsers = profiles?.filter(profile => 
-          !existingMemberIds.includes(profile.id)
-        ) || [];
-        
-        setAllUsers(availableUsers);
-        
-        // Fetch pending invites
-        await fetchPendingInvites();
+        if (channelData) {
+          setChannel(channelData);
+          setNewGroupName(channelData?.data?.name || '');
+          
+          // Get member details (exclude left members)
+          const leftMembers = channelData.data?.left_members as string[] || [];
+          const allMembers = Object.values(channelData.state?.members || {});
+          const activeMembers = allMembers.filter((member: any) => 
+            !leftMembers.includes(member.user_id)
+          );
+          setMembers(activeMembers);
+          
+          // Fetch all users for adding members
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .neq('id', currentUser.id);
+          
+          // Filter out users who are already active members
+          const existingMemberIds = activeMembers.map((member: any) => member.user_id);
+          const availableUsers = profiles?.filter(profile => 
+            !existingMemberIds.includes(profile.id)
+          ) || [];
+          
+          setAllUsers(availableUsers);
+          
+          // Fetch pending invites
+          await fetchPendingInvites();
+        } else {
+          showError('Error', 'Failed to load group information');
+        }
       } catch (error) {
         console.error('Error fetching channel:', error);
         showError('Error', 'Failed to load group information');

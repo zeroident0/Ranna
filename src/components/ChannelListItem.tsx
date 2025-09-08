@@ -66,18 +66,13 @@ const ChannelListItem = memo(function ChannelListItem({
 
   // Determine if this is a group chat
   const isGroupChat = () => {
-    // Groups are identified by having a name (1-on-1 chats don't have names)
-    if (!channel.data?.name) return false;
+    // Groups are identified by having a name OR being of type 'group' OR having is_permanent_group flag
+    // 1-on-1 chats don't have names and use 'messaging' type
+    if (channel.type === 'group') return true;
+    if (channel.data?.name) return true;
+    if (channel.data?.is_permanent_group) return true;
     
-    // Also check if it was originally a group by counting active members
-    const leftMembers = channel.data?.left_members as string[] || [];
-    const activeMembers = Object.values(channel.state.members).filter(member => 
-      !leftMembers.includes(member.user_id)
-    );
-    
-    // If there are 2 or more active members, it's still a group
-    // If there's only 1 active member, it should still be considered a group if it has a name
-    return true; // If it has a name, it's a group regardless of member count
+    return false;
   };
 
   // Check if current user has left this group
@@ -91,10 +86,26 @@ const ChannelListItem = memo(function ChannelListItem({
   const getChannelName = (): string => {
     if (isGroupChat()) {
       let baseName = '';
+      
+      // For groups, always prioritize the group name if it exists
       if (channel.data?.name) {
         baseName = channel.data.name;
+      } else if (channel.data?.is_permanent_group) {
+        // For permanent groups without a name, generate a name from all members (including left ones)
+        const leftMembers = channel.data?.left_members as string[] || [];
+        const members = Object.values(channel.state.members);
+        const allOtherMembers = members.filter(member => member.user_id !== user?.id);
+        const memberNames = allOtherMembers.map(member => 
+          member.user?.name || member.user?.full_name || 'Unknown'
+        );
+        
+        if (memberNames.length <= 2) {
+          baseName = memberNames.join(', ');
+        } else {
+          baseName = `${memberNames.slice(0, 2).join(', ')} and ${memberNames.length - 2} others`;
+        }
       } else {
-        // Generate a name from member names (exclude left members)
+        // For legacy groups without a name, generate a name from active members only
         const leftMembers = channel.data?.left_members as string[] || [];
         const members = Object.values(channel.state.members);
         const activeOtherMembers = members.filter(member => 
@@ -360,7 +371,22 @@ const ChannelListItem = memo(function ChannelListItem({
   const getMemberCount = (): string | null => {
     if (!isGroupChat()) return null;
     
-    // Count only active members (exclude left members)
+    // For groups with names or permanent groups, show total member count (including left members)
+    if (channel.data?.name || channel.data?.is_permanent_group) {
+      const totalMembers = Object.values(channel.state.members).length;
+      const leftMembers = channel.data?.left_members as string[] || [];
+      const activeMembers = Object.values(channel.state.members).filter(member => 
+        !leftMembers.includes(member.user_id)
+      );
+      
+      if (leftMembers.length > 0) {
+        return `${activeMembers.length} active, ${totalMembers} total`;
+      } else {
+        return `${totalMembers} members`;
+      }
+    }
+    
+    // For legacy groups without names, count only active members
     const leftMembers = channel.data?.left_members as string[] || [];
     const activeMembers = Object.values(channel.state.members).filter(member => 
       !leftMembers.includes(member.user_id)

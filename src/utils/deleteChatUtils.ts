@@ -62,9 +62,11 @@ export const deleteChat = async (
  * @returns boolean indicating if this is a group chat
  */
 export const isGroupChat = (channel: ChannelType): boolean => {
-  // Groups are identified by having a name (1-on-1 chats don't have names)
-  if (!channel.data?.name) return false;
+  // Groups are identified by having a name OR being of type 'group' OR having is_permanent_group flag
+  // 1-on-1 chats don't have names and use 'messaging' type
+  if (channel.type === 'group') return true;
+  if (channel.data?.name) return true;
+  if (channel.data?.is_permanent_group) return true;
   
-  // If it has a name, it's a group regardless of member count
-  return true;
+  return false;
 };

@@ -31,8 +31,15 @@ export default function MainTabScreen() {
   
   // Helper function to determine if a channel is a group chat
   const isGroupChat = (channel: ChannelType) => {
-    // Groups are identified by having a name (1-on-1 chats don't have names)
-    return !!channel.data?.name;
+    // Groups are identified by having a name OR being of type 'group' OR having is_permanent_group flag
+    // 1-on-1 chats don't have names and use 'messaging' type
+    return channel.type === 'group' || !!channel.data?.name || !!channel.data?.is_permanent_group;
+  };
+
+  // Helper function to determine if a channel is a direct chat
+  const isDirectChat = (channel: ChannelType) => {
+    // Direct chats are of type 'messaging' and don't have names
+    return channel.type === 'messaging' && !channel.data?.name;
   };
 
   // Create filter based on channel type selection - memoized to prevent unnecessary recalculations
@@ -45,13 +52,14 @@ export default function MainTabScreen() {
 
     switch (channelFilter) {
       case 'chats':
-        // Direct chats: channels without a name (1-on-1 chats don't have names)
+        // Direct chats: channels of type 'messaging' without names (1-on-1 chats)
         return {
           ...baseFilter,
+          type: 'messaging',
           name: { $exists: false }
         };
       case 'groups':
-        // Group chats: channels with a name (groups have names)
+        // Group chats: channels with names (groups have names)
         return {
           ...baseFilter,
           name: { $exists: true }
@@ -280,7 +288,7 @@ export default function MainTabScreen() {
         </View>
       )}
 
-      {/* Use Stream Chat's built-in ChannelList for real-time updates */}
+      {/* Use Stream Chat's built-in ChannelList */}
       {!showSearch && (
         <View style={[styles.channelListContainer, showSearch && styles.channelListWithSearch]}>
           <ChannelList

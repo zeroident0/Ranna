@@ -227,6 +227,7 @@ export default function CreateGroupScreen() {
       const channelId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
       // Create the group channel with creator as admin
+      // Use 'messaging' type but add a custom field to prevent auto-conversion
       console.log('Creating channel with group name...');
       const channel = client.channel('messaging', channelId, {
         name: groupName.trim(),
@@ -234,7 +235,9 @@ export default function CreateGroupScreen() {
         members: memberIds,
         created_by_id: currentUser.id,
         // Store admins as custom field since role changes aren't allowed client-side
-        admins: [currentUser.id]
+        admins: [currentUser.id],
+        // Add custom field to mark this as a permanent group
+        is_permanent_group: true
       });
 
       console.log('Channel created, watching...');
@@ -315,7 +318,7 @@ export default function CreateGroupScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>New Group Chat</Text>
         <TouchableOpacity
-          onPress={createGroupChat}
+          onPress={() => createGroupChat()}
           disabled={isCreating || selectedUsers.length === 0 || !groupName.trim()}
           style={[
             styles.createButton,

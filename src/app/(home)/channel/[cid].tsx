@@ -82,19 +82,19 @@ export default function ChannelScreen() {
   }, [channelData]);
 
   // Determine if this is a group chat (use initial data for instant header)
-  // Groups are identified by having a name, 1-on-1 chats don't have names
+  // Groups are identified by having a name OR being of type 'group' OR having is_permanent_group flag
+  // 1-on-1 chats don't have names and use 'messaging' type
   const isGroupChat = useMemo(() => {
     const channelToCheck = channel || initialChannelData;
     if (!channelToCheck) {
       return false;
     }
-    // Groups are identified by having a name (1-on-1 chats don't have names)
-    if (!channelToCheck.data?.name) {
-      return false;
-    }
+    // Groups are identified by having a name OR being of type 'group' OR having is_permanent_group flag
+    if (channelToCheck.type === 'group') return true;
+    if (channelToCheck.data?.name) return true;
+    if (channelToCheck.data?.is_permanent_group) return true;
     
-    // If it has a name, it's a group regardless of member count
-    return true;
+    return false;
   }, [channel, initialChannelData]);
 
   // Check if current user has left this group
@@ -107,7 +107,7 @@ export default function ChannelScreen() {
   }, [user, isGroupChat, channel, initialChannelData]);
 
   // Effect to load channel data on component mount
-  // Uses passed channel data for instant loading, otherwise fetches from Stream Chat
+  // Uses passed channel data for instant loading, otherwise fetches from Stream Chat or cache
   useEffect(() => {
     // Use passed channel data if available (instant), otherwise fetch
     if (channelData) {
@@ -129,10 +129,46 @@ export default function ChannelScreen() {
     // Fallback: fetch channel if no data passed
     const fetchChannel = async () => {
       try {
+        // First try queryChannels (works for channels user is member of)
         const channels = await client.queryChannels({ cid });
-        setChannel(channels[0]);
+        if (channels.length > 0) {
+          setChannel(channels[0]);
+          return;
+        }
+        
+        // If queryChannels fails, try to get channel by CID
+        const [channelType, channelId] = cid?.split(':') || ['messaging', ''];
+        const channelInstance = client.channel(channelType, channelId);
+        
+        // Try to watch the channel to get full data
+        try {
+          await channelInstance.watch();
+          setChannel(channelInstance);
+          return;
+        } catch (watchError) {
+          // If watch fails, try to query the channel
+          console.log('Watch failed, trying query:', watchError);
+          try {
+            const basicChannel = await channelInstance.query();
+            setChannel(channelInstance);
+            return;
+          } catch (queryError) {
+            console.log('Query failed, using minimal channel:', queryError);
+            // Use the channel instance as is (might have basic data)
+            setChannel(channelInstance);
+            return;
+          }
+        }
       } catch (error) {
         console.log('Error fetching channel:', error);
+        // As last resort, try to create a minimal channel object
+        try {
+          const [channelType, channelId] = cid?.split(':') || ['messaging', ''];
+          const channelInstance = client.channel(channelType, channelId);
+          setChannel(channelInstance);
+        } catch (fallbackError) {
+          console.log('Fallback channel creation failed:', fallbackError);
+        }
       }
     };
 
