@@ -9,11 +9,11 @@ export default function TabsNavigator() {
     <Tabs
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: 'rgba(248, 250, 252, 0.95)',
-          borderTopColor: 'rgba(226, 232, 240, 0.8)',
+          backgroundColor: '#B19CD9',
+          borderTopColor: 'rgba(177, 156, 217, 0.8)',
         },
-        tabBarActiveTintColor: '#3B82F6',
-        tabBarInactiveTintColor: '#64748B',
+        tabBarActiveTintColor: '#FFFFFF',
+        tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.7)',
       }}
     >
       <Tabs.Screen
@@ -21,8 +21,15 @@ export default function TabsNavigator() {
         options={{
           title: 'Chats',
           tabBarIcon: ({ size, color }) => (
-            <Ionicons name="chatbubble-outline" size={size} color={color} />
+            <Ionicons name="chatbubble-outline" size={size} color="#FFFFFF" />
           ),
+          headerStyle: {
+            backgroundColor: '#B19CD9',
+          },
+          headerTintColor: '#FFFFFF',
+          headerTitleStyle: {
+            color: '#FFFFFF',
+          },
         }}
       />
       <Tabs.Screen
@@ -30,14 +37,14 @@ export default function TabsNavigator() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ size, color }) => (
-            <AntDesign name="user" size={size} color={color} />
+            <AntDesign name="user" size={size} color="#FFFFFF" />
           ),
           headerStyle: {
-            backgroundColor: themes.colors.background,
+            backgroundColor: '#B19CD9',
           },
-          headerTintColor: themes.colors.text,
+          headerTintColor: '#FFFFFF',
           headerTitleStyle: {
-            color: themes.colors.text,
+            color: '#FFFFFF',
           },
         }}
       />

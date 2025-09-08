@@ -70,9 +70,9 @@ export default function AuthProvider({ children }: PropsWithChildren) {
     console.log('🔐 AuthProvider: User metadata:', session.user.user_metadata);
     console.log('🔐 AuthProvider: User email:', session.user.email);
     
-    const fetchProfile = async () => {
+    const fetchProfile = async (retryCount = 0) => {
       try {
-        console.log('🔐 AuthProvider: Attempting to fetch profile from database...');
+        console.log('🔐 AuthProvider: Attempting to fetch profile from database... (attempt', retryCount + 1, ')');
         let { data, error } = await supabase
           .from('profiles')
           .select('*')
@@ -82,6 +82,15 @@ export default function AuthProvider({ children }: PropsWithChildren) {
         if (error) {
           console.log('🔐 AuthProvider: Error fetching profile:', error);
           console.log('🔐 AuthProvider: Error code:', error.code);
+          
+          // Check if it's a network error and retry
+          if (error.message?.includes('Network request failed') && retryCount < 3) {
+            console.log('🔐 AuthProvider: Network error, retrying in', (retryCount + 1) * 2000, 'ms...');
+            setTimeout(() => {
+              fetchProfile(retryCount + 1);
+            }, (retryCount + 1) * 2000);
+            return;
+          }
           
           // If profile doesn't exist, create one
           if (error.code === 'PGRST116') {
@@ -138,7 +147,21 @@ export default function AuthProvider({ children }: PropsWithChildren) {
             }
           } else {
             console.log('🔐 AuthProvider: Different error, not creating profile');
-            setProfile(null);
+            // For network errors that failed retry, create a minimal profile to allow app to work
+            if (error.message?.includes('Network request failed')) {
+              console.log('🔐 AuthProvider: Network failed after retries, creating minimal profile...');
+              const minimalProfile = {
+                id: session.user.id,
+                full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+                username: session.user.email?.split('@')[0] || 'user',
+                avatar_url: null,
+                bio: null,
+                website: null
+              };
+              setProfile(minimalProfile);
+            } else {
+              setProfile(null);
+            }
           }
         } else {
           console.log('🔐 AuthProvider: Profile fetched successfully:', data);
@@ -146,7 +169,21 @@ export default function AuthProvider({ children }: PropsWithChildren) {
         }
       } catch (err) {
         console.log('🔐 AuthProvider: Exception fetching profile:', err);
-        setProfile(null);
+        // For network exceptions, create a minimal profile to allow app to work
+        if (err instanceof Error && err.message?.includes('Network request failed')) {
+          console.log('🔐 AuthProvider: Network exception, creating minimal profile...');
+          const minimalProfile = {
+            id: session.user.id,
+            full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+            username: session.user.email?.split('@')[0] || 'user',
+            avatar_url: null,
+            bio: null,
+            website: null
+          };
+          setProfile(minimalProfile);
+        } else {
+          setProfile(null);
+        }
       }
     };
     fetchProfile();

@@ -10,19 +10,24 @@ import { extractAllSocialMediaLinks, SocialMediaInfo } from '../../../utils/soci
 import CustomAlert from '../../../components/CustomAlert';
 import { useCustomAlert } from '../../../hooks/useCustomAlert';
 import { themes } from '../../../constants/themes';
+import { useChatContext } from 'stream-chat-expo';
 
 export default function UserProfileScreen() {
   const { userId } = useLocalSearchParams<{ userId: string }>();
   const { user: currentUser } = useAuth();
   const { alertState, showError, hideAlert } = useCustomAlert();
+  const { client } = useChatContext();
 
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [socialLinks, setSocialLinks] = useState<SocialMediaInfo[]>([]);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
 
   useEffect(() => {
     if (userId) {
       fetchUserProfile();
+      checkBlockStatus();
     }
   }, [userId]);
 
@@ -75,18 +80,51 @@ export default function UserProfileScreen() {
     }
   }
 
-  const handleStartChat = async () => {
-    if (!currentUser || !userId) return;
+  async function checkBlockStatus() {
+    if (!client || !userId || !currentUser) return;
     
     try {
-      // Navigate to users screen to start a chat
-      // This will use the existing UserListItem component which handles chat creation
-      router.push('/(home)/users');
+      const response = await client.getBlockedUsers();
+      const blocks = (response as any).blocks || [];
+      const blockedUserIds = blocks.map((block: any) => block.blocked_user_id);
+      setIsBlocked(blockedUserIds.includes(userId));
     } catch (error) {
-      console.log('Error starting chat:', error);
-      showError('Error', 'Failed to start chat');
+      console.log('❌ UserProfile: Error checking block status:', error);
     }
-  };
+  }
+
+  async function handleBlockUser() {
+    if (!client || !userId || !currentUser) return;
+    
+    try {
+      setBlockLoading(true);
+      await client.blockUser(userId);
+      setIsBlocked(true);
+      showError('Success', 'User has been blocked');
+    } catch (error) {
+      console.log('❌ UserProfile: Error blocking user:', error);
+      showError('Error', 'Failed to block user');
+    } finally {
+      setBlockLoading(false);
+    }
+  }
+
+  async function handleUnblockUser() {
+    if (!client || !userId || !currentUser) return;
+    
+    try {
+      setBlockLoading(true);
+      await client.unBlockUser(userId);
+      setIsBlocked(false);
+      showError('Success', 'User has been unblocked');
+    } catch (error) {
+      console.log('❌ UserProfile: Error unblocking user:', error);
+      showError('Error', 'Failed to unblock user');
+    } finally {
+      setBlockLoading(false);
+    }
+  }
+
 
   // Debug logging
   console.log('🔍 UserProfile: Render state:', {
@@ -109,10 +147,10 @@ export default function UserProfileScreen() {
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <Text style={{ color: themes.colors.text }}>User profile not found.</Text>
         <TouchableOpacity 
-          style={[styles.chatButton, { marginTop: themes.spacing.md }]}
+          style={[styles.blockButton, { marginTop: themes.spacing.md }]}
           onPress={() => router.back()}
         >
-          <Text style={styles.chatButtonText}>Go Back</Text>
+          <Text style={styles.blockButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -162,11 +200,24 @@ export default function UserProfileScreen() {
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <TouchableOpacity 
-            style={styles.chatButton}
-            onPress={handleStartChat}
+            style={[
+              styles.blockButton, 
+              isBlocked ? styles.unblockButton : styles.blockButton
+            ]}
+            onPress={isBlocked ? handleUnblockUser : handleBlockUser}
+            disabled={blockLoading}
           >
-            <Ionicons name="chatbubble-outline" size={20} color="#fff" />
-            <Text style={styles.chatButtonText}>Start Chat</Text>
+            <Ionicons 
+              name={isBlocked ? "checkmark-circle-outline" : "ban-outline"} 
+              size={20} 
+              color="#fff" 
+            />
+            <Text style={styles.blockButtonText}>
+              {blockLoading 
+                ? (isBlocked ? 'Unblocking...' : 'Blocking...') 
+                : (isBlocked ? 'Unblock User' : 'Block User')
+              }
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -239,15 +290,16 @@ const styles = StyleSheet.create({
     marginTop: themes.spacing.lg,
     marginBottom: 40,
   },
-  chatButton: {
-    backgroundColor: themes.colors.primary,
+  blockButton: {
+    backgroundColor: '#FF3B30',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 15,
     paddingHorizontal: themes.spacing.lg,
     borderRadius: themes.borderRadius.md,
-    shadowColor: themes.colors.primary,
+    marginTop: themes.spacing.md,
+    shadowColor: '#FF3B30',
     shadowOffset: {
       width: 0,
       height: 4,
@@ -256,8 +308,12 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  chatButtonText: {
-    color: themes.colors.text,
+  unblockButton: {
+    backgroundColor: '#34C759',
+    shadowColor: '#34C759',
+  },
+  blockButtonText: {
+    color: '#fff',
     fontSize: themes.fontSize.md,
     fontWeight: themes.fontWeight.semibold,
     marginLeft: themes.spacing.sm,

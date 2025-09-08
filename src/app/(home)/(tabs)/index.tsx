@@ -223,14 +223,14 @@ export default function MainTabScreen() {
                 <Ionicons 
                   name={showFilters ? "filter" : "filter-outline"} 
                   size={24} 
-                  color={showFilters ? "#007AFF" : "#666"} 
+                  color="#FFFFFF" 
                 />
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => router.push('/(home)/invites')}
                 style={styles.inviteButton}
               >
-                <Ionicons name="mail" size={24} color="#007AFF" />
+                <Ionicons name="mail" size={24} color="#FFFFFF" />
                 {pendingInviteCount > 0 && (
                   <View style={styles.inviteBadge}>
                     <Text style={styles.inviteBadgeText}>
@@ -243,7 +243,7 @@ export default function MainTabScreen() {
                 onPress={() => setShowSearch(true)}
                 style={styles.searchButton}
               >
-                <Ionicons name="search" size={24} color="#007AFF" />
+                <Ionicons name="search" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           ),

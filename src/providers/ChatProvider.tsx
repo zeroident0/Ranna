@@ -116,6 +116,7 @@ export default function ChatProvider({ children }: PropsWithChildren) {
           }, 2000 * (retryCount + 1)); // Exponential backoff
         } else {
           // Set ready even if there's an error to prevent infinite loading
+          console.log('💬 ChatProvider: Setting ready despite connection error to allow app to function');
           setIsReady(true);
         }
       }

@@ -8,6 +8,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { usePresence } from '../hooks/usePresence';
 import { formatTimestamp } from '../utils/formatTimestamp';
+import { useChatContext } from 'stream-chat-expo';
 
 // ________________________________________INTERFACES________________________________________
 interface ChannelListItemProps {
@@ -25,12 +26,38 @@ const ChannelListItem = memo(function ChannelListItem({
   isSearchResult = false 
 }: ChannelListItemProps) {
   const { user } = useAuth();
+  const { client } = useChatContext();
   const { isUserOnline, updatePresence } = usePresence();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string>('');
   const [selectedImageName, setSelectedImageName] = useState<string>('');
+  const [isBlocked, setIsBlocked] = useState(false);
+
+  // Check block status on mount
+  useEffect(() => {
+    checkIfBlocked();
+  }, [channel.id]);
 
   // ________________________________________HELPER FUNCTIONS________________________________________
+  // Check if this channel is blocked (for 1-on-1 chats only)
+  const checkIfBlocked = async () => {
+    if (!client || !user || isGroupChat()) return;
+    
+    try {
+      const members = Object.values(channel.state.members);
+      const otherMember = members.find(member => member.user_id !== user.id);
+      
+      if (otherMember) {
+        const response = await client.getBlockedUsers();
+        const blocks = (response as any).blocks || [];
+        const blockedUserIds = blocks.map((block: any) => block.blocked_user_id);
+        setIsBlocked(blockedUserIds.includes(otherMember.user_id));
+      }
+    } catch (error) {
+      console.log('❌ ChannelListItem: Error checking block status:', error);
+    }
+  };
+
   // Determine if this is a group chat
   const isGroupChat = () => {
     // Groups are identified by having a name (1-on-1 chats don't have names)
@@ -447,9 +474,17 @@ const ChannelListItem = memo(function ChannelListItem({
       
       <View style={styles.contentContainer}>
         <View style={styles.headerRow}>
-          <Text style={[styles.channelName, hasUserLeft() && styles.leftGroupName]} numberOfLines={1}>
-            {getChannelName()}
-          </Text>
+          <View style={styles.nameContainer}>
+            <Text style={[styles.channelName, hasUserLeft() && styles.leftGroupName, isBlocked && styles.blockedChannelName]} numberOfLines={1}>
+              {getChannelName()}
+            </Text>
+            {isBlocked && (
+              <View style={styles.blockedBadge}>
+                <Ionicons name="ban" size={12} color="#FF3B30" />
+                <Text style={styles.blockedBadgeText}>Blocked</Text>
+              </View>
+            )}
+          </View>
           <View style={styles.metaContainer}>
             {isGroupChat() && (
               <View style={styles.groupBadge}>
@@ -684,12 +719,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  nameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
   channelName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#000',
     flex: 1,
-    marginRight: 8,
+  },
+  blockedChannelName: {
+    color: '#999',
+    textDecorationLine: 'line-through',
+  },
+  blockedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffe6e6',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  blockedBadgeText: {
+    fontSize: 10,
+    color: '#FF3B30',
+    fontWeight: '600',
+    marginLeft: 2,
   },
   metaContainer: {
     flexDirection: 'row',
