@@ -26,6 +26,7 @@ export default function MainTabScreen() {
   const [activeTab, setActiveTab] = useState<'chats' | 'users'>('chats');
   // Note: channelListError removed - built-in ChannelList handles errors automatically
   const [channelFilter, setChannelFilter] = useState<'all' | 'chats' | 'groups'>('all');
+  const [pendingInviteCount, setPendingInviteCount] = useState(0);
   
   // Helper function to determine if a channel is a group chat
   const isGroupChat = (channel: ChannelType) => {
@@ -71,6 +72,18 @@ export default function MainTabScreen() {
 
 
   // Note: refreshChannelList removed - built-in ChannelList handles this automatically
+
+  // Fetch pending invite count
+  const fetchPendingInviteCount = async () => {
+    try {
+      const channels = await client.queryChannels({
+        invite: 'pending',
+      });
+      setPendingInviteCount(channels.length);
+    } catch (error) {
+      console.error('Error fetching pending invite count:', error);
+    }
+  };
 
   // Search function
   const performSearch = async (query: string) => {
@@ -165,6 +178,17 @@ export default function MainTabScreen() {
     return () => clearTimeout(timeoutId);
   }, [searchQuery, activeTab]);
 
+  // Fetch invite count on mount and focus
+  useEffect(() => {
+    fetchPendingInviteCount();
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchPendingInviteCount();
+    }, [])
+  );
+
   // Clear search when search is closed
   const handleCloseSearch = () => {
     setShowSearch(false);
@@ -190,12 +214,27 @@ export default function MainTabScreen() {
               <Ionicons name="close" size={24} color="#FF3B30" />
             </TouchableOpacity>
           ) : () => (
-            <TouchableOpacity
-              onPress={() => setShowSearch(true)}
-              style={styles.searchButton}
-            >
-              <Ionicons name="search" size={24} color="#007AFF" />
-            </TouchableOpacity>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity
+                onPress={() => router.push('/(home)/invites')}
+                style={styles.inviteButton}
+              >
+                <Ionicons name="mail" size={24} color="#007AFF" />
+                {pendingInviteCount > 0 && (
+                  <View style={styles.inviteBadge}>
+                    <Text style={styles.inviteBadgeText}>
+                      {pendingInviteCount > 99 ? '99+' : pendingInviteCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowSearch(true)}
+                style={styles.searchButton}
+              >
+                <Ionicons name="search" size={24} color="#007AFF" />
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />
@@ -356,9 +395,35 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   searchButton: {
     padding: 8,
     marginRight: 8,
+  },
+  inviteButton: {
+    padding: 8,
+    marginRight: 4,
+    position: 'relative',
+  },
+  inviteBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  inviteBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
   },
   closeButton: {
     padding: 8,

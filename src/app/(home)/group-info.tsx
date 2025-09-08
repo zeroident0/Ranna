@@ -31,10 +31,12 @@ export default function GroupInfoScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [showAddMembers, setShowAddMembers] = useState(false);
+  const [showInviteMembers, setShowInviteMembers] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingImage, setIsUpdatingImage] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<any[]>([]);
   
   const { cid } = useLocalSearchParams<{ cid: string }>();
   const { client } = useChatContext();
@@ -59,6 +61,87 @@ export default function GroupInfoScreen() {
   const isMemberAdmin = (member: any) => {
     const admins = channel?.data?.admins || [];
     return admins.includes(member.user_id);
+  };
+
+  // Helper function to check if current user has a pending invite
+  const hasCurrentUserPendingInvite = () => {
+    if (!channel || !currentUser) return false;
+    const invites = channel.data?.invites as string[] || [];
+    return invites.includes(currentUser.id);
+  };
+
+  // Function to query pending invites for this channel
+  const fetchPendingInvites = async () => {
+    try {
+      const channels = await client.queryChannels({
+        invite: 'pending',
+        cid: cid
+      });
+      
+      if (channels.length > 0) {
+        const channelData = channels[0];
+        // Get invited users from channel data
+        const invitedUserIds = (channelData.data?.invites as string[]) || [];
+        if (invitedUserIds.length > 0) {
+          // Fetch user details for invited users
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('id', invitedUserIds);
+          
+          setPendingInvites(profiles || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching pending invites:', error);
+    }
+  };
+
+  // Function to accept an invite
+  const handleAcceptInvite = async () => {
+    try {
+      await channel.acceptInvite({
+        message: { text: `${(currentUser as any)?.full_name || 'User'} joined the group!` }
+      });
+      
+      // Refresh channel data
+      const channels = await client.queryChannels({ cid });
+      setChannel(channels[0]);
+      
+      // Update members list
+      const leftMembers = channels[0].data?.left_members as string[] || [];
+      const allMembers = Object.values(channels[0].state.members);
+      const activeMembers = allMembers.filter(member => 
+        !leftMembers.includes(member.user_id)
+      );
+      setMembers(activeMembers);
+      
+      showSuccess('Success', 'You have joined the group!');
+    } catch (error) {
+      console.error('Error accepting invite:', error);
+      showError('Error', 'Failed to accept invitation');
+    }
+  };
+
+  // Function to reject an invite
+  const handleRejectInvite = async () => {
+    showConfirm(
+      'Reject Invitation',
+      'Are you sure you want to reject this group invitation?',
+      async () => {
+        try {
+          await channel.rejectInvite();
+          showSuccess('Success', 'Invitation rejected');
+          router.replace('/(home)/(tabs)/');
+        } catch (error) {
+          console.error('Error rejecting invite:', error);
+          showError('Error', 'Failed to reject invitation');
+        }
+      },
+      undefined,
+      'Reject',
+      'Cancel'
+    );
   };
 
   useEffect(() => {
@@ -90,6 +173,9 @@ export default function GroupInfoScreen() {
         ) || [];
         
         setAllUsers(availableUsers);
+        
+        // Fetch pending invites
+        await fetchPendingInvites();
       } catch (error) {
         console.error('Error fetching channel:', error);
         showError('Error', 'Failed to load group information');
@@ -122,6 +208,7 @@ export default function GroupInfoScreen() {
     }
   };
 
+  // Function to directly add a member (no invitation needed)
   const handleAddMember = async (user: User) => {
     if (!isCurrentUserAdmin()) {
       showError('Error', 'Only admins can add members');
@@ -129,6 +216,7 @@ export default function GroupInfoScreen() {
     }
 
     try {
+      // Directly add the member to the group
       await channel.addMembers([user.id]);
       
       // Update local state
@@ -148,6 +236,27 @@ export default function GroupInfoScreen() {
     } catch (error) {
       console.error('Error adding member:', error);
       showError('Error', 'Failed to add member');
+    }
+  };
+
+  // Function to invite a member (they need to accept)
+  const handleInviteMember = async (user: User) => {
+    if (!isCurrentUserAdmin()) {
+      showError('Error', 'Only admins can invite members');
+      return;
+    }
+
+    try {
+      // Use inviteMembers to send an invitation
+      await channel.inviteMembers([user.id]);
+      
+      // Remove user from available users list since they've been invited
+      setAllUsers(prev => prev.filter(u => u.id !== user.id));
+      
+      showSuccess('Success', `Invitation sent to ${user.full_name}`);
+    } catch (error) {
+      console.error('Error inviting member:', error);
+      showError('Error', 'Failed to send invitation');
     }
   };
 
@@ -519,10 +628,7 @@ export default function GroupInfoScreen() {
   };
 
   const renderAvailableUser = ({ item }: { item: User }) => (
-    <TouchableOpacity
-      style={styles.userItem}
-      onPress={() => handleAddMember(item)}
-    >
+    <View style={styles.userItem}>
       <ProfileImage
         avatarUrl={item.avatar_url}
         fullName={item.full_name}
@@ -530,8 +636,21 @@ export default function GroupInfoScreen() {
         showBorder={false}
       />
       <Text style={styles.userName}>{item.full_name}</Text>
-      <Ionicons name="add-circle" size={24} color="#007AFF" />
-    </TouchableOpacity>
+      <View style={styles.userActions}>
+        <TouchableOpacity
+          onPress={() => handleAddMember(item)}
+          style={styles.userActionButton}
+        >
+          <Ionicons name="add-circle" size={24} color="#007AFF" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleInviteMember(item)}
+          style={styles.userActionButton}
+        >
+          <Ionicons name="mail" size={24} color="#34C759" />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
   if (isLoading) {
@@ -608,13 +727,22 @@ export default function GroupInfoScreen() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{members.length} members</Text>
           {isCurrentUserAdmin() && !hasCurrentUserLeft() && (
-            <TouchableOpacity
-              onPress={() => setShowAddMembers(true)}
-              style={styles.addButton}
-            >
-              <Ionicons name="person-add" size={20} color="#007AFF" />
-              <Text style={styles.addButtonText}>Add</Text>
-            </TouchableOpacity>
+            <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity
+                onPress={() => setShowAddMembers(true)}
+                style={[styles.actionButton, styles.addButton]}
+              >
+                <Ionicons name="person-add" size={16} color="#007AFF" />
+                <Text style={styles.actionButtonText}>Add</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowInviteMembers(true)}
+                style={[styles.actionButton, styles.inviteButton]}
+              >
+                <Ionicons name="mail" size={16} color="#34C759" />
+                <Text style={[styles.actionButtonText, styles.inviteButtonText]}>Invite</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
         
@@ -626,8 +754,63 @@ export default function GroupInfoScreen() {
         />
       </View>
 
-      {/* Leave Group Button or Rejoin Button */}
-      {hasCurrentUserLeft() ? (
+      {/* Pending Invites Section (for admins) */}
+      {isCurrentUserAdmin() && pendingInvites.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Pending Invitations ({pendingInvites.length})</Text>
+          </View>
+          <FlatList
+            data={pendingInvites}
+            renderItem={({ item }) => (
+              <View style={styles.memberItem}>
+                <ProfileImage
+                  avatarUrl={item.avatar_url}
+                  fullName={item.full_name}
+                  size={48}
+                  showBorder={false}
+                />
+                <View style={styles.memberInfo}>
+                  <Text style={styles.memberName}>{item.full_name}</Text>
+                  <Text style={styles.pendingInviteText}>Invitation sent</Text>
+                </View>
+                <View style={styles.memberActions}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      // Remove from pending invites (cancel invitation)
+                      setPendingInvites(prev => prev.filter(invite => invite.id !== item.id));
+                      showInfo('Info', 'Invitation cancelled');
+                    }}
+                    style={styles.removeButton}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#ff3b30" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+          />
+        </View>
+      )}
+
+      {/* Invite Response Buttons or Leave Group Button */}
+      {hasCurrentUserPendingInvite() ? (
+        <View style={styles.inviteButtonContainer}>
+          <TouchableOpacity
+            style={[styles.inviteResponseButton, styles.acceptButton]}
+            onPress={handleAcceptInvite}
+          >
+            <Text style={styles.inviteResponseButtonText}>Accept Invitation</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.inviteResponseButton, styles.rejectButton]}
+            onPress={handleRejectInvite}
+          >
+            <Text style={styles.inviteResponseButtonText}>Reject Invitation</Text>
+          </TouchableOpacity>
+        </View>
+      ) : hasCurrentUserLeft() ? (
         <TouchableOpacity
           style={[styles.leaveButton, styles.rejoinButton]}
           onPress={() => {
@@ -659,6 +842,42 @@ export default function GroupInfoScreen() {
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Add Members</Text>
             <View style={{ width: 60 }} />
+          </View>
+          
+          <View style={styles.modalDescription}>
+            <Text style={styles.modalDescriptionText}>
+              Users will be added directly to the group without needing to accept an invitation.
+            </Text>
+          </View>
+          
+          <FlatList
+            data={allUsers}
+            renderItem={renderAvailableUser}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.usersList}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Invite Members Modal */}
+      <Modal
+        visible={showInviteMembers}
+        animationType="slide"
+        onRequestClose={() => setShowInviteMembers(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowInviteMembers(false)}>
+              <Text style={styles.cancelButton}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Invite Members</Text>
+            <View style={{ width: 60 }} />
+          </View>
+          
+          <View style={styles.modalDescription}>
+            <Text style={styles.modalDescriptionText}>
+              Users will receive an invitation and need to accept it to join the group.
+            </Text>
           </View>
           
           <FlatList
@@ -790,19 +1009,33 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000',
   },
-  addButton: {
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#f0f8ff',
     borderRadius: 16,
   },
-  addButtonText: {
+  addButton: {
+    backgroundColor: '#f0f8ff',
+  },
+  inviteButton: {
+    backgroundColor: '#f0fff4',
+  },
+  actionButtonText: {
     fontSize: 14,
-    color: '#007AFF',
     fontWeight: '600',
     marginLeft: 4,
+  },
+  addButtonText: {
+    color: '#007AFF',
+  },
+  inviteButtonText: {
+    color: '#34C759',
   },
   memberItem: {
     flexDirection: 'row',
@@ -903,6 +1136,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
     fontWeight: '500',
+  },
+  userActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  userActionButton: {
+    padding: 4,
+  },
+  modalDescription: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  modalDescriptionText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   renameModalOverlay: {
     flex: 1,
@@ -1014,5 +1267,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontWeight: '500',
+  },
+  inviteButtonContainer: {
+    flexDirection: 'row',
+    margin: 16,
+    gap: 12,
+  },
+  inviteResponseButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  acceptButton: {
+    backgroundColor: '#34C759',
+  },
+  rejectButton: {
+    backgroundColor: '#FF3B30',
+  },
+  inviteResponseButtonText: {
+    fontSize: 16,
+    color: 'white',
+    fontWeight: '600',
+  },
+  pendingInviteText: {
+    fontSize: 12,
+    color: '#FF9500',
+    fontWeight: '500',
+    marginTop: 2,
   },
 });
