@@ -1,11 +1,12 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState, useMemo } from 'react';
-import { ActivityIndicator, Text, View, TouchableOpacity, StyleSheet } from 'react-native';
+import { ActivityIndicator, Text, View, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Channel as ChannelType } from 'stream-chat';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ProfileImage from '../../../components/ProfileImage';
 import { supabase } from '../../../lib/supabase';
+import { themes } from '../../../constants/themes';
 
 import {
   Channel,
@@ -34,11 +35,18 @@ export default function ChannelScreen() {
 
   // Determine if this is a group chat
   const isGroupChat = useMemo(() => {
-    if (!channel) return false;
+    if (!channel) {
+      console.log('🔍 isGroupChat: No channel');
+      return false;
+    }
     // Groups are identified by having a name (1-on-1 chats don't have names)
-    if (!channel.data?.name) return false;
+    if (!channel.data?.name) {
+      console.log('🔍 isGroupChat: No channel name, treating as 1-on-1');
+      return false;
+    }
     
     // If it has a name, it's a group regardless of member count
+    console.log('🔍 isGroupChat: Has channel name, treating as group');
     return true;
   }, [channel]);
 
@@ -238,14 +246,41 @@ export default function ChannelScreen() {
       );
     }
     
-    // For 1-on-1 chats, show other participant's avatar
+    // For 1-on-1 chats, show other participant's avatar and make it clickable
     const imageUrl = getOtherParticipantImage();
     const fullName = getOtherParticipantFullName();
+    
+    // Get other participant ID for navigation
+    const getOtherParticipantId = (): string | null => {
+      if (!channel || !user) return null;
+      const members = Object.values(channel.state.members);
+      const otherMember = members.find(member => member.user_id !== user.id);
+      return otherMember?.user_id || null;
+    };
+
+    const otherParticipantId = getOtherParticipantId();
     
     // Only render when we have at least the name to avoid flashing
     if (!fullName && !otherParticipantProfile) {
       return (
         <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#e0e0e0' }} />
+      );
+    }
+    
+    // Make the profile picture clickable for 1-on-1 chats
+    if (otherParticipantId) {
+      return (
+        <TouchableOpacity 
+          onPress={() => router.push(`/(home)/user-profile/${otherParticipantId}`)}
+          activeOpacity={0.7}
+        >
+          <ProfileImage
+            avatarUrl={imageUrl}
+            fullName={fullName}
+            size={32}
+            showBorder={false}
+          />
+        </TouchableOpacity>
       );
     }
     
@@ -266,7 +301,7 @@ export default function ChannelScreen() {
           onPress={() => router.back()}
           style={{ marginRight: 12 }}
         >
-          <Ionicons name="arrow-back" size={24} color="#000000" />
+          <Ionicons name="arrow-back" size={24} color={themes.colors.text} />
         </TouchableOpacity>
         <ProfilePicture />
       </View>
@@ -277,33 +312,81 @@ export default function ChannelScreen() {
     const channelName = getChannelName();
     const memberNames = getGroupMemberNames();
     
-    if (isGroupChat && memberNames) {
+    // Debug logging
+    console.log('🔍 HeaderTitle Debug:', {
+      isGroupChat,
+      channelName,
+      memberNames,
+      channelData: channel?.data,
+      channelDataName: channel?.data?.name
+    });
+    
+    // For group chats, show group info with member names
+    if (isGroupChat) {
+      console.log('🔍 Rendering group chat header');
       return (
         <TouchableOpacity 
           style={{ marginLeft: 8, flex: 1 }}
           onPress={() => router.push(`/(home)/group-info?cid=${cid}`)}
           activeOpacity={0.7}
         >
-          <Text style={{ fontSize: 17, fontWeight: '600', color: '#000000' }}>
+          <Text style={{ fontSize: 17, fontWeight: '600', color: themes.colors.text }}>
             {channelName}
           </Text>
-          <Text 
-            style={{ 
-              fontSize: 13, 
-              color: '#666666', 
-              marginTop: 1
-            }}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            {memberNames}
+          {memberNames && (
+            <Text 
+              style={{ 
+                fontSize: 13, 
+                color: themes.colors.textSecondary, 
+                marginTop: 1
+              }}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {memberNames}
+            </Text>
+          )}
+        </TouchableOpacity>
+      );
+    }
+    
+    // For 1-on-1 chats, make the username clickable to navigate to profile
+    const getOtherParticipantId = (): string | null => {
+      if (!channel || !user) return null;
+      const members = Object.values(channel.state.members);
+      const otherMember = members.find(member => member.user_id !== user.id);
+      return otherMember?.user_id || null;
+    };
+
+    const otherParticipantId = getOtherParticipantId();
+    
+    console.log('🔍 1-on-1 chat debug:', {
+      otherParticipantId,
+      channelMembers: Object.values(channel?.state?.members || {}),
+      currentUserId: user?.id
+    });
+    
+    if (otherParticipantId) {
+      console.log('🔍 Rendering clickable 1-on-1 header');
+      return (
+        <TouchableOpacity 
+          style={{ marginLeft: 8, flex: 1 }}
+          onPress={() => {
+            console.log('🔍 Navigating to user profile:', otherParticipantId);
+            router.push(`/(home)/user-profile/${otherParticipantId}`);
+          }}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 17, fontWeight: '600', color: themes.colors.text }}>
+            {channelName}
           </Text>
         </TouchableOpacity>
       );
     }
     
+    console.log('🔍 Rendering fallback header');
     return (
-      <Text style={{ marginLeft: 8, fontSize: 17, fontWeight: '600' }}>
+      <Text style={{ marginLeft: 8, fontSize: 17, fontWeight: '600', color: themes.colors.text }}>
         {channelName}
       </Text>
     );
@@ -404,6 +487,7 @@ export default function ChannelScreen() {
 
   return (
     <Channel channel={channel} audioRecordingEnabled>
+      <StatusBar backgroundColor={themes.colors.background} barStyle="light-content" />
       <Stack.Screen
         options={{
           headerTitle: () => <HeaderTitle />,
@@ -414,13 +498,17 @@ export default function ChannelScreen() {
                 onPress={() => setShowDropdown(!showDropdown)}
                 style={{ marginRight: 16 }}
               >
-                <Ionicons name="ellipsis-vertical" size={24} color="gray" />
+                <Ionicons name="ellipsis-vertical" size={24} color={themes.colors.text} />
               </TouchableOpacity>
               <TouchableOpacity onPress={joinCall}>
-                <Ionicons name="call" size={24} color="gray" />
+                <Ionicons name="call" size={24} color={themes.colors.text} />
               </TouchableOpacity>
             </View>
           ),
+          headerStyle: {
+            backgroundColor: themes.colors.background,
+          },
+          headerTintColor: themes.colors.text,
         }}
       />
       <TouchableOpacity 
