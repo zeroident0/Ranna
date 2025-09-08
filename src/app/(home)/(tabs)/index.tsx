@@ -27,6 +27,7 @@ export default function MainTabScreen() {
   // Note: channelListError removed - built-in ChannelList handles errors automatically
   const [channelFilter, setChannelFilter] = useState<'all' | 'chats' | 'groups'>('all');
   const [pendingInviteCount, setPendingInviteCount] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
   
   // Helper function to determine if a channel is a group chat
   const isGroupChat = (channel: ChannelType) => {
@@ -216,6 +217,16 @@ export default function MainTabScreen() {
           ) : () => (
             <View style={styles.headerButtons}>
               <TouchableOpacity
+                onPress={() => setShowFilters(!showFilters)}
+                style={styles.filterButton}
+              >
+                <Ionicons 
+                  name={showFilters ? "filter" : "filter-outline"} 
+                  size={24} 
+                  color={showFilters ? "#007AFF" : "#666"} 
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
                 onPress={() => router.push('/(home)/invites')}
                 style={styles.inviteButton}
               >
@@ -240,7 +251,7 @@ export default function MainTabScreen() {
       />
       
       {/* Filter Tabs */}
-      {!showSearch && (
+      {!showSearch && showFilters && (
         <View style={styles.filterContainer}>
           <TouchableOpacity
             style={[styles.filterTab, channelFilter === 'all' && styles.activeFilterTab]}
@@ -409,6 +420,10 @@ const styles = StyleSheet.create({
   headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  filterButton: {
+    padding: 8,
+    marginRight: 4,
   },
   searchButton: {
     padding: 8,
