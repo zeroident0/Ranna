@@ -9,7 +9,10 @@ export default ({ config }) => ({
   splash: {
     image: "./assets/icone.png",
     resizeMode: "contain",
-    backgroundColor: "rgb(177, 156, 217)"
+    backgroundColor: "#B19CD9" // rgb(177, 156, 217)
+  },
+  notification: {
+    icon: "./assets/notificationicon.png"
   },
   assetBundlePatterns: ["**/*"],
   scheme: "ranna",
@@ -82,7 +85,7 @@ export default ({ config }) => ({
   extra: {
     router: {},
     eas: {
-      projectId: "8dae4b3d-8170-4ee2-baed-03f3d17df1bd"
+      projectId: "c0f5e432-0a17-42f9-b06c-3c949c89e0ef"
     }
   }
 });

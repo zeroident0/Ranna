@@ -252,6 +252,13 @@ export default function ChannelScreen() {
     }
   }, [channel, user, client, isGroupChat]);
 
+  // Close dropdown when component unmounts or when navigating away
+  useEffect(() => {
+    return () => {
+      setShowDropdown(false);
+    };
+  }, []);
+
   // Get the display name for the channel
   // For groups: uses channel name or generates from member names
   // For 1-on-1: uses other participant's name
@@ -838,30 +845,23 @@ export default function ChannelScreen() {
       ) : (
         // Chat interface with message list and input
         <Channel channel={channel} audioRecordingEnabled>
-          {/* Touchable area to close dropdown when tapping outside */}
-          <TouchableOpacity 
-            style={{ flex: 1 }} 
-            activeOpacity={1} 
-            onPress={() => setShowDropdown(false)}
-          >
-            {/* Message list showing chat history */}
-            <MessageList />
-            
-            {/* Message input area with safe area handling */}
-            <SafeAreaView edges={['bottom']}>
-              {hasUserLeft ? (
-                // Show message for users who have left the group
-                <View style={styles.leftGroupMessageContainer}>
-                  <Text style={styles.leftGroupMessage}>
-                    You left this group. You can view the chat history but cannot send messages.
-                  </Text>
-                </View>
-              ) : (
-                // Normal message input for active users
-                <MessageInput />
-              )}
-            </SafeAreaView>
-          </TouchableOpacity>
+          {/* Message list showing chat history */}
+          <MessageList />
+          
+          {/* Message input area with safe area handling */}
+          <SafeAreaView edges={['bottom']}>
+            {hasUserLeft ? (
+              // Show message for users who have left the group
+              <View style={styles.leftGroupMessageContainer}>
+                <Text style={styles.leftGroupMessage}>
+                  You left this group. You can view the chat history but cannot send messages.
+                </Text>
+              </View>
+            ) : (
+              // Normal message input for active users
+              <MessageInput />
+            )}
+          </SafeAreaView>
           
           {/* Dropdown menu overlay */}
           <DropdownMenu />
