@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, View, AppState } from 'react-native';
+import { StyleSheet, View, AppState, Image, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Button, Input, Text } from 'react-native-elements';
 import { Link } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useCustomAlert } from '../../hooks/useCustomAlert';
+import CustomAlert from '../../components/CustomAlert';
 
 // Tells Supabase Auth to continuously refresh the session automatically if
 // the app is in the foreground. When this is added, you will continue to receive
@@ -21,15 +24,18 @@ export default function SignUp() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { alertState, showError, showSuccess, hideAlert } = useCustomAlert();
 
   async function signUpWithEmail() {
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      showError('Password Mismatch', 'Passwords do not match');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+      showError('Invalid Password', 'Password must be at least 6 characters long');
       return;
     }
 
@@ -42,49 +48,98 @@ export default function SignUp() {
       password: password,
     });
 
-    if (error) Alert.alert('Error', error.message);
-    if (!session)
-      Alert.alert('Success', 'Please check your inbox for email verification!');
+    if (error) {
+      showError('Signup Failed', error.message);
+    } else if (!session) {
+      showSuccess('Account Created', 'Please check your inbox for email verification!');
+    }
     setLoading(false);
   }
 
   return (
-    <View style={styles.container}>
-      <Text h3 style={styles.title}>Create Account</Text>
+    <LinearGradient
+      colors={['rgb(177, 156, 217)', 'white']}
+      style={styles.container}
+    >
+      <KeyboardAvoidingView 
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+        <View style={styles.iconContainer}>
+          <Image 
+            source={require('../../../assets/icon.png')} 
+            style={styles.appIcon}
+            resizeMode="contain"
+          />
+        </View>
+        <Text h3 style={styles.title}>Create Account</Text>
       
       <View style={[styles.verticallySpaced, styles.mt20]}>
         <Input
           label="Email"
-          leftIcon={{ type: 'font-awesome', name: 'envelope' }}
+          leftIcon={{ type: 'font-awesome', name: 'envelope', color: 'rgb(177, 156, 217)' }}
           onChangeText={(text) => setEmail(text)}
           value={email}
           placeholder="email@address.com"
           autoCapitalize={'none'}
           keyboardType="email-address"
+          inputStyle={styles.inputText}
+          labelStyle={styles.inputLabel}
+          containerStyle={styles.inputContainer}
+          inputContainerStyle={styles.inputContainerStyle}
+          placeholderTextColor="#999"
         />
       </View>
       
       <View style={styles.verticallySpaced}>
         <Input
           label="Password"
-          leftIcon={{ type: 'font-awesome', name: 'lock' }}
+          leftIcon={{ type: 'font-awesome', name: 'lock', color: 'rgb(177, 156, 217)' }}
+          rightIcon={{
+            type: 'font-awesome',
+            name: showPassword ? 'eye-slash' : 'eye',
+            color: 'rgb(177, 156, 217)',
+            onPress: () => setShowPassword(!showPassword),
+          }}
           onChangeText={(text) => setPassword(text)}
           value={password}
-          secureTextEntry={true}
+          secureTextEntry={!showPassword}
           placeholder="Password (min 6 characters)"
           autoCapitalize={'none'}
+          inputStyle={styles.inputText}
+          labelStyle={styles.inputLabel}
+          containerStyle={styles.inputContainer}
+          inputContainerStyle={styles.inputContainerStyle}
+          placeholderTextColor="#999"
         />
       </View>
       
       <View style={styles.verticallySpaced}>
         <Input
           label="Confirm Password"
-          leftIcon={{ type: 'font-awesome', name: 'lock' }}
+          leftIcon={{ type: 'font-awesome', name: 'lock', color: 'rgb(177, 156, 217)' }}
+          rightIcon={{
+            type: 'font-awesome',
+            name: showConfirmPassword ? 'eye-slash' : 'eye',
+            color: 'rgb(177, 156, 217)',
+            onPress: () => setShowConfirmPassword(!showConfirmPassword),
+          }}
           onChangeText={(text) => setConfirmPassword(text)}
           value={confirmPassword}
-          secureTextEntry={true}
+          secureTextEntry={!showConfirmPassword}
           placeholder="Confirm Password"
           autoCapitalize={'none'}
+          inputStyle={styles.inputText}
+          labelStyle={styles.inputLabel}
+          containerStyle={styles.inputContainer}
+          inputContainerStyle={styles.inputContainerStyle}
+          placeholderTextColor="#999"
         />
       </View>
       
@@ -105,16 +160,48 @@ export default function SignUp() {
           </Link>
         </Text>
       </View>
-    </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+      <CustomAlert
+        visible={alertState.visible}
+        title={alertState.options.title}
+        message={alertState.options.message}
+        type={alertState.options.type}
+        buttons={alertState.options.buttons}
+        onDismiss={hideAlert}
+        showCloseButton={alertState.options.showCloseButton}
+        icon={alertState.options.icon}
+        customIcon={alertState.options.customIcon}
+        animationType={alertState.options.animationType}
+        backgroundColor={alertState.options.backgroundColor}
+        overlayColor={alertState.options.overlayColor}
+        borderRadius={alertState.options.borderRadius}
+        maxWidth={alertState.options.maxWidth}
+        showIcon={alertState.options.showIcon}
+      />
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    marginTop: 40,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     padding: 12,
-    backgroundColor: '#fff',
+  },
+  iconContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  appIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 20,
   },
   title: {
     textAlign: 'center',
@@ -122,15 +209,15 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   verticallySpaced: {
-    paddingTop: 4,
-    paddingBottom: 4,
+    paddingTop: 0,
+    paddingBottom: 0,
     alignSelf: 'stretch',
   },
   mt20: {
-    marginTop: 20,
+    marginTop: 10,
   },
   primaryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: 'rgb(177, 156, 217)',
   },
   linkText: {
     textAlign: 'center',
@@ -138,7 +225,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   link: {
-    color: '#007AFF',
+    color: 'rgb(177, 156, 217)',
     fontWeight: 'bold',
+  },
+  inputContainer: {
+    marginBottom: 2,
+  },
+  inputContainerStyle: {
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgb(177, 156, 217)',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  inputText: {
+    color: '#333',
+    fontSize: 16,
+  },
+  inputLabel: {
+    color: '#000',
+    fontWeight: '600',
+    marginBottom: 8,
   },
 });

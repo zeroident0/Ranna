@@ -18,5 +18,11 @@ export default function AuthLayout() {
   }
 
   console.log('🔐 AuthLayout: No user, showing auth stack');
-  return <Stack />;
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+      }}
+    />
+  );
 }
