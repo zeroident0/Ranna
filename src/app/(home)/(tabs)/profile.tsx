@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Text, StatusBar, Alert } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Text, StatusBar, Alert, ActivityIndicator } from 'react-native';
 import { Button, Input } from 'react-native-elements';
 import { Session } from '@supabase/supabase-js';
 import { useAuth } from '../../../providers/AuthProvider';
@@ -17,6 +17,7 @@ import { themes } from '../../../constants/themes';
 import { useChatContext } from 'stream-chat-expo';
 import { router } from 'expo-router';
 import CacheManagement from '../../../components/CacheManagement';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function ProfileScreen() {
   const { session } = useAuth();
@@ -128,11 +129,17 @@ export default function ProfileScreen() {
       setLoading(true);
       if (!session?.user) throw new Error('No user on the session!');
 
+      // Validate full name is not empty
+      if (!full_name || full_name.trim().length === 0) {
+        showError('Validation Error', 'Full name cannot be empty');
+        return;
+      }
+
       const updates = {
         id: session?.user.id,
         website,
         avatar_url,
-        full_name,
+        full_name: full_name.trim(),
         // bio, // Commented out until migration is applied
         updated_at: new Date(),
       };
@@ -374,35 +381,52 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text>Loading profile...</Text>
-      </View>
+      <LinearGradient
+        colors={['rgb(177, 156, 217)', 'white']}
+        style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
+        <ActivityIndicator size="large" color="rgb(120, 100, 180)" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </LinearGradient>
     );
   }
 
   if (!session?.user) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <LinearGradient
+        colors={['rgb(177, 156, 217)', 'white']}
+        style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
         <Text>No user session found. Please log in.</Text>
-      </View>
+      </LinearGradient>
     );
   }
 
   return (
     <>
-      <StatusBar backgroundColor={themes.colors.background} barStyle="light-content" />
-      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <StatusBar backgroundColor="rgb(177, 156, 217)" barStyle="light-content" />
+      <LinearGradient
+        colors={['rgb(177, 156, 217)', 'white']}
+        style={styles.container}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+      >
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={{ alignItems: 'center' }}>
           <View style={styles.avatarContainer}>
-            <ProfileImage
-              avatarUrl={avatarUrl}
-              fullName={fullName}
-              size={200}
-              showBorder={true}
-              borderColor="#007AFF"
-              style={styles.avatar}
-              userId={session?.user?.id}
-            />
+             <ProfileImage
+               avatarUrl={avatarUrl}
+               fullName={fullName}
+               size={200}
+               showBorder={true}
+               borderColor="rgb(120, 100, 180)"
+               style={styles.avatar}
+               userId={session?.user?.id}
+             />
             <TouchableOpacity
               style={styles.cameraButton}
               onPress={uploadAvatar}
@@ -454,24 +478,31 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Input
-          label="Full name"
-          value={fullName || ''}
-          onChangeText={(text) => {
-            setFullname(text);
-            updateProfile({
-              website,
-              avatar_url: avatarUrl,
-              full_name: text,
-              bio,
-            });
-          }}
-          inputStyle={styles.inputText}
-          labelStyle={styles.labelText}
-        />
+      <View style={[styles.verticallySpaced, styles.mt20, styles.inputContainer]}>
+         <Input
+           label="Full name"
+           value={fullName || ''}
+           onChangeText={(text) => {
+             if (text.trim().length > 0) {
+               setFullname(text);
+               updateProfile({
+                 website,
+                 avatar_url: avatarUrl,
+                 full_name: text,
+                 bio,
+               });
+             }
+           }}
+           inputStyle={styles.inputText}
+           labelStyle={styles.labelText}
+           inputContainerStyle={styles.inputContainerStyle}
+           containerStyle={styles.inputWrapper}
+           placeholderTextColor="#999"
+           placeholder="Enter your full name"
+           errorMessage={!fullName || fullName.trim().length === 0 ? "Full name is required" : ""}
+         />
       </View>
-      <View style={styles.verticallySpaced}>
+      <View style={[styles.verticallySpaced, styles.inputContainer]}>
         <Input
           label="Bio"
           value={bio || ''}
@@ -485,18 +516,25 @@ export default function ProfileScreen() {
             });
           }}
           placeholder="Tell us about yourself..."
-          inputStyle={styles.inputText}
+          inputStyle={[styles.inputText, styles.bioInput]}
           labelStyle={styles.labelText}
-          placeholderTextColor="#CCCCCC"
+          inputContainerStyle={styles.inputContainerStyle}
+          containerStyle={styles.inputWrapper}
+          placeholderTextColor="#999"
+          multiline={true}
+          numberOfLines={3}
         />
       </View>
-      <View style={styles.verticallySpaced}>
+      <View style={[styles.verticallySpaced, styles.inputContainer]}>
         <Input 
           label="Email" 
           value={session?.user?.email} 
           disabled 
-          inputStyle={styles.inputText}
-          labelStyle={styles.labelText}
+          inputStyle={[styles.inputText, styles.disabledInput]}
+          labelStyle={[styles.labelText, styles.disabledLabel]}
+          inputContainerStyle={[styles.inputContainerStyle, styles.disabledInputContainer]}
+          containerStyle={styles.inputWrapper}
+          placeholderTextColor="#999"
         />
       </View>
       {/* <View style={styles.verticallySpaced}>
@@ -521,24 +559,25 @@ export default function ProfileScreen() {
           onPress={() => fetchBlockedUsers()}
           activeOpacity={0.7}
         >
-          <View style={styles.blockedUsersHeaderLeft}>
-            <Ionicons name="ban-outline" size={22} color={themes.colors.text} />
-            <Text style={styles.blockedUsersTitle}>Blocked Users</Text>
-            <Text style={styles.blockedUsersCount}>{blockedUsers.length}</Text>
-          </View>
-          <Ionicons name="refresh" size={18} color={themes.colors.textSecondary} />
+           <View style={styles.blockedUsersHeaderLeft}>
+             <Ionicons name="ban-outline" size={22} color="rgb(255, 255, 255)" />
+             <Text style={styles.blockedUsersTitle}>Blocked Users</Text>
+             <Text style={styles.blockedUsersCount}>{blockedUsers.length}</Text>
+           </View>
+           <Ionicons name="refresh" size={18} color="rgb(200, 180, 220)" />
         </TouchableOpacity>
         
-        {!client?.wsConnection ? (
-          <View style={styles.connectionErrorContainer}>
-            <Ionicons name="wifi-outline" size={20} color="#FF9500" />
-            <Text style={styles.connectionErrorText}>
-              Chat service unavailable. Blocked users cannot be loaded.
-            </Text>
-          </View>
+         {!client?.wsConnection ? (
+           <View style={styles.connectionErrorContainer}>
+             <Ionicons name="wifi-outline" size={20} color="rgb(255, 255, 255)" />
+             <Text style={styles.connectionErrorText}>
+               Chat service unavailable. Blocked users cannot be loaded.
+             </Text>
+           </View>
         ) : blockedUsersLoading ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading blocked users...</Text>
+            <ActivityIndicator size="small" color="rgb(200, 180, 220)" />
+            <Text style={[styles.loadingText, { color: 'rgb(200, 180, 220)', fontSize: 14, marginTop: 8 }]}>Loading blocked users...</Text>
           </View>
         ) : blockedUsers.length > 0 ? (
           <View style={styles.blockedUsersList}>
@@ -589,12 +628,13 @@ export default function ProfileScreen() {
       {/* <CacheManagement style={styles.verticallySpaced} /> */}
 
       <View style={[styles.verticallySpaced, styles.signOutContainer]}>
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={25} color="#fff" style={styles.signOutIcon} />
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
+         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+           <Ionicons name="log-out-outline" size={25} color="#ff4444" style={styles.signOutIcon} />
+           <Text style={styles.signOutText}>Sign Out</Text>
+         </TouchableOpacity>
       </View>
-    </ScrollView>
+        </ScrollView>
+      </LinearGradient>
 
     {/* Custom Alert */}
     <CustomAlert
@@ -621,7 +661,9 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: themes.colors.background,
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollContent: {
     paddingTop: 40,
@@ -641,36 +683,24 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   signOutButton: {
-    backgroundColor: '#ff4444',
+    backgroundColor: 'transparent',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 15,
     paddingHorizontal: 20,
     borderRadius: 12,
-    shadowColor: '#ff4444',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#ff3333',
+    borderWidth: 2,
+    borderColor: '#ff4444',
   },
   signOutIcon: {
     marginRight: 8,
   },
   signOutText: {
-    color: '#fff',
+    color: '#ff4444',
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.5,
-  },
-  bioInput: {
-    textAlignVertical: 'top',
-    minHeight: 80,
   },
   socialBadgesContainer: {
     backgroundColor: '#F8F9FA',
@@ -705,25 +735,73 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FFE6E6',
   },
+  inputContainer: {
+    marginHorizontal: 4,
+  },
+  inputWrapper: {
+    paddingHorizontal: 0,
+  },
+  inputContainerStyle: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(177, 156, 217, 0.3)',
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
   inputText: {
-    color: themes.colors.text,
+    color: '#333',
+    fontSize: 16,
+    fontWeight: '500',
+    paddingVertical: 8,
   },
   labelText: {
-    color: themes.colors.text,
+    color: '#555',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  bioInput: {
+    textAlignVertical: 'top',
+    minHeight: 80,
+    paddingTop: 12,
+  },
+  disabledInput: {
+    color: '#888',
+    fontSize: 16,
+    fontWeight: '400',
+  },
+  disabledLabel: {
+    color: '#999',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  disabledInputContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    borderColor: 'rgba(177, 156, 217, 0.2)',
   },
   blockedUsersContainer: {
-    backgroundColor: 'rgb(159, 15, 116)',
+    backgroundColor: 'rgb(120, 100, 180)',
     borderRadius: 16,
     padding: 20,
     marginTop: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0)',
+    borderColor: 'rgb(100, 80, 160)',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 12,
     elevation: 8,
   },
@@ -734,7 +812,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 1)',
+    borderBottomColor: 'rgb(100, 80, 160)',
   },
   blockedUsersHeaderLeft: {
     flexDirection: 'row',
@@ -743,15 +821,15 @@ const styles = StyleSheet.create({
   blockedUsersTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: themes.colors.text,
+    color: 'rgb(255, 255, 255)',
     marginLeft: 10,
     letterSpacing: 0.5,
   },
   blockedUsersCount: {
     fontSize: 14,
-    color: themes.colors.textSecondary,
+    color: 'rgb(255, 255, 255)',
     marginLeft: 8,
-    backgroundColor: 'rgb(98, 19, 86)',
+    backgroundColor: 'rgb(80, 60, 140)',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
@@ -762,9 +840,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    color: themes.colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '500',
+    color: 'rgb(120, 100, 180)',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
+    textAlign: 'center',
   },
   blockedUsersList: {
     gap: 12,
@@ -774,16 +854,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: 'rgb(144, 7, 100)',
+    backgroundColor: 'rgb(100, 80, 160)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 1)',
+    borderColor: 'rgb(80, 60, 140)',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -797,13 +877,12 @@ const styles = StyleSheet.create({
   blockedUserName: {
     fontSize: 15,
     fontWeight: '600',
-    color: themes.colors.text,
+    color: 'rgb(255, 255, 255)',
     marginBottom: 4,
   },
   blockedUserDate: {
     fontSize: 12,
-    color: themes.colors.textSecondary,
-    opacity: 0.8,
+    color: 'rgb(200, 180, 220)',
   },
   unblockButton: {
     flexDirection: 'row',
@@ -811,15 +890,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: 'rgba(52, 199, 89, 1)',
+    backgroundColor: 'rgb(52, 199, 89)',
     borderWidth: 1,
-    borderColor: 'rgba(52, 199, 89, 1)',
+    borderColor: 'rgb(40, 180, 70)',
     shadowColor: '#34C759',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -831,11 +910,10 @@ const styles = StyleSheet.create({
   },
   moreBlockedUsers: {
     fontSize: 13,
-    color: themes.colors.textSecondary,
+    color: 'rgb(200, 180, 220)',
     textAlign: 'center',
     marginTop: 12,
     fontStyle: 'italic',
-    opacity: 0.8,
     paddingVertical: 8,
   },
   noBlockedUsersContainer: {
@@ -844,30 +922,29 @@ const styles = StyleSheet.create({
   },
   noBlockedUsers: {
     fontSize: 16,
-    color: themes.colors.textSecondary,
+    color: 'rgb(255, 255, 255)',
     textAlign: 'center',
     fontWeight: '500',
     marginBottom: 8,
   },
   noBlockedUsersSubtext: {
     fontSize: 13,
-    color: themes.colors.textSecondary,
+    color: 'rgb(200, 180, 220)',
     textAlign: 'center',
-    opacity: 0.7,
     lineHeight: 18,
   },
   connectionErrorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: 'rgba(255, 149, 0, 0.1)',
+    backgroundColor: 'rgb(200, 100, 50)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 149, 0, 0.2)',
+    borderColor: 'rgb(180, 80, 40)',
   },
   connectionErrorText: {
     fontSize: 13,
-    color: '#FF9500',
+    color: 'rgb(255, 255, 255)',
     marginLeft: 10,
     flex: 1,
     fontWeight: '500',
@@ -883,7 +960,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: '#007AFF',
+    backgroundColor: 'rgb(120, 100, 180)',
     borderRadius: 25,
     width: 50,
     height: 50,
