@@ -80,8 +80,12 @@ export default ({ config }) => ({
     "@react-native-firebase/app",
     "@react-native-firebase/messaging",
     "@config-plugins/react-native-callkeep",
-    "expo-audio"
+    "expo-audio",
+    "expo-updates"
   ], 
+  updates: {
+    url: "https://u.expo.dev/c0f5e432-0a17-42f9-b06c-3c949c89e0ef"
+  },
   extra: {
     router: {},
     eas: {

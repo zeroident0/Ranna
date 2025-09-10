@@ -610,7 +610,7 @@ const ChannelListItem = memo(function ChannelListItem({
           <View style={styles.metaContainer}>
             {isGroupChat() && (
               <View style={styles.groupBadge}>
-                <Ionicons name="people" size={12} color="#007AFF" />
+                <Ionicons name="people" size={12} color="#8B5CF6" />
                 <Text style={styles.groupBadgeText}>Group</Text>
               </View>
             )}
@@ -909,7 +909,7 @@ const styles = StyleSheet.create({
   groupBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f8ff',
+    backgroundColor: '#f3f0ff',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
@@ -917,7 +917,7 @@ const styles = StyleSheet.create({
   },
   groupBadgeText: {
     fontSize: 10,
-    color: '#007AFF',
+    color: '#8B5CF6',
     fontWeight: '600',
     marginLeft: 2,
   },

@@ -18,6 +18,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "channel": "preview",
       "env": {
         "NODE_ENV": "staging",
         "GOOGLE_SERVICES_JSON": "@file:GOOGLE_SERVICES_JSON",
@@ -29,6 +30,7 @@
     },
     "production": {
       "autoIncrement": true,
+      "channel": "production",
       "env": {
         "NODE_ENV": "production",
         "GOOGLE_SERVICES_JSON": "@file:GOOGLE_SERVICES_JSON",
@@ -37,6 +39,17 @@
       "android": {
         "gradleCommand": ":app:assembleRelease"
       }
+    }
+  },
+  "update": {
+    "development": {
+      "channel": "development"
+    },
+    "preview": {
+      "channel": "preview"
+    },
+    "production": {
+      "channel": "production"
     }
   },
   "submit": {
