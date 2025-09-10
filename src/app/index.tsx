@@ -2,7 +2,7 @@ import { Redirect } from 'expo-router';
 import { useAuth } from '../providers/AuthProvider';
 import { View, Text, StyleSheet } from 'react-native';
 
-export default function HomeScreen() {
+export default function RootScreen() {
   const { user, loading } = useAuth();
 
   // Show loading while checking authentication state
@@ -16,7 +16,7 @@ export default function HomeScreen() {
 
   // Redirect based on authentication state
   if (user) {
-    return <Redirect href={'/(home)'} />;
+    return <Redirect href={'/(home)/(tabs)'} />;
   } else {
     return <Redirect href={'/(auth)/login'} />;
   }

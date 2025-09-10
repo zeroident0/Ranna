@@ -14,8 +14,7 @@ export default function HomeLayout() {
 
   if (loading) {
     console.log('🏠 HomeLayout: Showing loading state');
-    // return null; // Let the root handle loading state
-    return <Text>Loading...IN Home Layout</Text>;
+    return null; // Let the root handle loading state to prevent flash
   }
 
   if (!user) {

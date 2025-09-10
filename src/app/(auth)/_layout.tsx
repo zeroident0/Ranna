@@ -9,12 +9,12 @@ export default function AuthLayout() {
 
   if (loading) {
     console.log('🔐 AuthLayout: Showing loading state');
-    return <Text>Loading...IN Auth Layout</Text>; // Let the root handle loading state
+    return null; // Let the root handle loading state to prevent flash
   }
 
   if (user) {
-    console.log('🔐 AuthLayout: User logged in, redirecting to home');
-    return <Redirect href="/(home)" />;
+    console.log('🔐 AuthLayout: User logged in, redirecting to home tabs');
+    return <Redirect href="/(home)/(tabs)" />;
   }
 
   console.log('🔐 AuthLayout: No user, showing auth stack');

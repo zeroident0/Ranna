@@ -60,64 +60,64 @@ export default function Login() {
             />
           </View>
           <Text h3 style={styles.title}>Welcome Back</Text>
-      
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Input
-          label="Email"
-          leftIcon={{ type: 'font-awesome', name: 'envelope', color: 'rgb(177, 156, 217)' }}
-          onChangeText={(text) => setEmail(text)}
-          value={email}
-          placeholder="email@address.com"
-          autoCapitalize={'none'}
-          keyboardType="email-address"
-          inputStyle={styles.inputText}
-          labelStyle={styles.inputLabel}
-          containerStyle={styles.inputContainer}
-          inputContainerStyle={styles.inputContainerStyle}
-          placeholderTextColor="#999"
-        />
-      </View>
-      
-      <View style={styles.verticallySpaced}>
-        <Input
-          label="Password"
-          leftIcon={{ type: 'font-awesome', name: 'lock', color: 'rgb(177, 156, 217)' }}
-          rightIcon={{
-            type: 'font-awesome',
-            name: showPassword ? 'eye-slash' : 'eye',
-            color: 'rgb(177, 156, 217)',
-            onPress: () => setShowPassword(!showPassword),
-          }}
-          onChangeText={(text) => setPassword(text)}
-          value={password}
-          secureTextEntry={!showPassword}
-          placeholder="Password"
-          autoCapitalize={'none'}
-          inputStyle={styles.inputText}
-          labelStyle={styles.inputLabel}
-          containerStyle={styles.inputContainer}
-          inputContainerStyle={styles.inputContainerStyle}
-          placeholderTextColor="#999"
-        />
-      </View>
-      
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Button
-          title="Sign In"
-          disabled={loading}
-          onPress={() => signInWithEmail()}
-          buttonStyle={styles.primaryButton}
-        />
-      </View>
-      
-      <View style={styles.verticallySpaced}>
-        <Text style={styles.linkText}>
-          Don't have an account?{' '}
-          <Link href="/(auth)/signup" style={styles.link}>
-            Sign Up
-          </Link>
-        </Text>
-      </View>
+          
+          <View style={[styles.verticallySpaced, styles.mt20]}>
+            <Input
+              label="Email"
+              leftIcon={{ type: 'font-awesome', name: 'envelope', color: 'rgb(177, 156, 217)' }}
+              onChangeText={(text) => setEmail(text)}
+              value={email}
+              placeholder="email@address.com"
+              autoCapitalize={'none'}
+              keyboardType="email-address"
+              inputStyle={styles.inputText}
+              labelStyle={styles.inputLabel}
+              containerStyle={styles.inputContainer}
+              inputContainerStyle={styles.inputContainerStyle}
+              placeholderTextColor="#999"
+            />
+          </View>
+          
+          <View style={styles.verticallySpaced}>
+            <Input
+              label="Password"
+              leftIcon={{ type: 'font-awesome', name: 'lock', color: 'rgb(177, 156, 217)' }}
+              rightIcon={{
+                type: 'font-awesome',
+                name: showPassword ? 'eye-slash' : 'eye',
+                color: 'rgb(177, 156, 217)',
+                onPress: () => setShowPassword(!showPassword),
+              }}
+              onChangeText={(text) => setPassword(text)}
+              value={password}
+              secureTextEntry={!showPassword}
+              placeholder="Password"
+              autoCapitalize={'none'}
+              inputStyle={styles.inputText}
+              labelStyle={styles.inputLabel}
+              containerStyle={styles.inputContainer}
+              inputContainerStyle={styles.inputContainerStyle}
+              placeholderTextColor="#999"
+            />
+          </View>
+          
+          <View style={[styles.verticallySpaced, styles.mt20]}>
+            <Button
+              title="Sign In"
+              disabled={loading}
+              onPress={() => signInWithEmail()}
+              buttonStyle={styles.primaryButton}
+            />
+          </View>
+          
+          <View style={styles.verticallySpaced}>
+            <Text style={styles.linkText}>
+              Don't have an account?{' '}
+              <Link href="/(auth)/signup" style={styles.link}>
+                Sign Up
+              </Link>
+            </Text>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
       <CustomAlert
