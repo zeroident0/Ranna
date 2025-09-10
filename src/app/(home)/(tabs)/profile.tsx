@@ -67,6 +67,7 @@ export default function ProfileScreen() {
     }
   }, [website]);
 
+
   async function getProfile() {
     try {
       setLoading(true);
@@ -482,17 +483,7 @@ export default function ProfileScreen() {
          <Input
            label="Full name"
            value={fullName || ''}
-           onChangeText={(text) => {
-             if (text.trim().length > 0) {
-               setFullname(text);
-               updateProfile({
-                 website,
-                 avatar_url: avatarUrl,
-                 full_name: text,
-                 bio,
-               });
-             }
-           }}
+           onChangeText={setFullname}
            inputStyle={styles.inputText}
            labelStyle={styles.labelText}
            inputContainerStyle={styles.inputContainerStyle}
@@ -506,15 +497,7 @@ export default function ProfileScreen() {
         <Input
           label="Bio"
           value={bio || ''}
-          onChangeText={(text) => {
-            setBio(text);
-            updateProfile({
-              website,
-              avatar_url: avatarUrl,
-              full_name: fullName,
-              bio: text,
-            });
-          }}
+          onChangeText={setBio}
           placeholder="Tell us about yourself..."
           inputStyle={[styles.inputText, styles.bioInput]}
           labelStyle={styles.labelText}
@@ -536,6 +519,30 @@ export default function ProfileScreen() {
           containerStyle={styles.inputWrapper}
           placeholderTextColor="#999"
         />
+      </View>
+
+      {/* Save Profile Button */}
+      <View style={[styles.verticallySpaced, styles.saveButtonContainer]}>
+        <TouchableOpacity 
+          style={styles.saveButton} 
+          onPress={() => updateProfile({
+            website,
+            avatar_url: avatarUrl,
+            full_name: fullName,
+            bio,
+          })}
+          disabled={loading}
+        >
+          <Ionicons 
+            name={loading ? "hourglass" : "save"} 
+            size={20} 
+            color="#fff" 
+            style={styles.saveButtonIcon}
+          />
+          <Text style={styles.saveButtonText}>
+            {loading ? 'Saving...' : 'Save Profile'}
+          </Text>
+        </TouchableOpacity>
       </View>
       {/* <View style={styles.verticallySpaced}>
         <Input
@@ -997,5 +1004,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  saveButtonContainer: {
+    marginTop: 20,
+    marginHorizontal: 4,
+  },
+  saveButton: {
+    backgroundColor: 'rgb(120, 100, 180)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgb(100, 80, 160)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  saveButtonIcon: {
+    marginRight: 8,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
 });

@@ -14,6 +14,8 @@ export default function TabsNavigator() {
         },
         tabBarActiveTintColor: '#FFFFFF',
         tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.7)',
+        tabBarActiveBackgroundColor: '#8B5FBF',
+        tabBarInactiveBackgroundColor: 'transparent',
       }}
     >
       <Tabs.Screen
