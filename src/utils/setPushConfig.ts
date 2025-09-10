@@ -1,11 +1,20 @@
+// Video calling functionality - commented out for now
+// Uncomment the imports and code below to re-enable video calls
+
+/*
 import {
   StreamVideoClient,
   StreamVideoRN,
 } from "@stream-io/video-react-native-sdk";
 import { AndroidImportance } from "@notifee/react-native";
 import { tokenProvider } from "./tokenProvider";
+*/
 
 export function setPushConfig() {
+  console.log("Push config: Video calls are disabled");
+  
+  // Video push configuration - commented out
+  /*
   console.log("Set push");
   StreamVideoRN.setPushConfig({
     // pass true to inform the SDK that this is an expo app
@@ -67,4 +76,5 @@ export function setPushConfig() {
       });
     },
   });
+  */
 }

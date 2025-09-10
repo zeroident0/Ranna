@@ -27,10 +27,10 @@ import {
   MessageList,
   useChatContext,
 } from 'stream-chat-expo';
-// Video calling functionality
-import { useStreamVideoClient } from '@stream-io/video-react-native-sdk';
-// Cryptographic utilities for generating unique IDs
-import * as Crypto from 'expo-crypto';
+// Video calling functionality - commented out for now
+// import { useStreamVideoClient } from '@stream-io/video-react-native-sdk';
+// Cryptographic utilities for generating unique IDs - commented out for now
+// import * as Crypto from 'expo-crypto';
 // Authentication context provider
 import { useAuth } from '../../../providers/AuthProvider';
 // Utility function for handling group leave operations
@@ -60,8 +60,8 @@ export default function ChannelScreen() {
 
   // Stream Chat client for messaging operations
   const { client } = useChatContext();
-  // Video client for call functionality
-  const videoClient = useStreamVideoClient();
+  // Video client for call functionality - commented out for now
+  // const videoClient = useStreamVideoClient();
   // Current authenticated user data
   const { user } = useAuth();
   // Custom alert system for notifications
@@ -556,8 +556,9 @@ export default function ChannelScreen() {
     );
   });
 
+  // Video calling functionality - commented out for now
   // Start an audio-only call with channel members
-  // Currently disabled but ready for future implementation
+  /*
   const joinCall = async () => {
     const members = Object.values(channel.state.members).map((member) => ({
       user_id: member.user_id,
@@ -589,6 +590,7 @@ export default function ChannelScreen() {
     // navigate to the call screen
     // router.push(`/call`);
   };
+  */
 
   // Navigate to group info screen and close dropdown
   const handleGroupInfo = () => {
@@ -823,7 +825,7 @@ export default function ChannelScreen() {
               >
                 <Ionicons name="ellipsis-vertical" size={24} color={themes.colors.text} />
               </TouchableOpacity>
-              {/* Call button (currently disabled) */}
+              {/* Call button - commented out for now */}
               {/* <TouchableOpacity onPress={joinCall}>
                 <Ionicons name="call" size={24} color={themes.colors.text} />
               </TouchableOpacity> */}
@@ -844,7 +846,10 @@ export default function ChannelScreen() {
         </View>
       ) : (
         // Chat interface with message list and input
-        <Channel channel={channel} audioRecordingEnabled>
+        <Channel 
+        channel={channel}
+        audioRecordingEnabled>
+        
           {/* Message list showing chat history */}
           <MessageList />
           

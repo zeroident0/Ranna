@@ -1,8 +1,8 @@
 import { Redirect, Stack } from 'expo-router';
 import ChatProvider from '../../providers/ChatProvider';
 import { useAuth } from '../../providers/AuthProvider';
-import VideoProvider from '../../providers/VideoProvider';
-import CallProvider from '../../providers/CallProvider';
+// import VideoProvider from '../../providers/VideoProvider'; // Commented out - video calls disabled
+// import CallProvider from '../../providers/CallProvider'; // Commented out - video calls disabled
 import NotificationsProvider from '../../providers/NotificationsProvider';
 import { Text } from 'react-native';
 import { themes } from '../../constants/themes';
@@ -27,8 +27,9 @@ export default function HomeLayout() {
   return (
     <ChatProvider>
       <NotificationsProvider>
-        <VideoProvider>
-          <CallProvider>
+        {/* Video calling providers - commented out for now */}
+        {/* <VideoProvider>
+          <CallProvider> */}
             <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="users" options={{ title: 'Users' }} />
@@ -50,8 +51,8 @@ export default function HomeLayout() {
                 }} 
               />
             </Stack>
-          </CallProvider>
-        </VideoProvider>
+        {/* </CallProvider>
+        </VideoProvider> */}
       </NotificationsProvider>
     </ChatProvider>
   );
