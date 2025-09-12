@@ -6,6 +6,7 @@ import { Link } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCustomAlert } from '../../hooks/useCustomAlert';
 import CustomAlert from '../../components/CustomAlert';
+import { Ionicons } from '@expo/vector-icons';
 
 // Tells Supabase Auth to continuously refresh the session automatically if
 // the app is in the foreground. When this is added, you will continue to receive
@@ -58,6 +59,10 @@ export default function Login() {
               style={styles.appIcon}
               resizeMode="contain"
             />
+            {/* 🟡 UPDATE TEST ICON - Can be deleted later */}
+            <View style={styles.updateTestIcon}>
+              <Ionicons name="checkmark-circle" size={24} color="#FFD700" />
+            </View>
           </View>
           <Text h3 style={styles.title}>Welcome Back</Text>
           
@@ -155,6 +160,23 @@ const styles = StyleSheet.create({
   iconContainer: {
     alignItems: 'center',
     marginBottom: 20,
+    position: 'relative',
+  },
+  updateTestIcon: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 12,
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   appIcon: {
     width: 120,
