@@ -38,7 +38,8 @@
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       },
       "android": {
-        "gradleCommand": ":app:assembleRelease"
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
       }
     }
   },

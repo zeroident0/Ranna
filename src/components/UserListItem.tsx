@@ -19,24 +19,22 @@ const UserListItem = ({ user }) => {
   }, [user?.id, updatePresence]);
 
   const onPress = async () => {
-    //start a chat with him
-    const channel = client.channel('messaging', {
-      members: [me.id, user.id],
-    });
-    await channel.watch();
-    router.replace({
-      pathname: `/(home)/channel/${channel.cid}`,
-      params: { 
-        channelData: JSON.stringify({
-          cid: channel.cid,
-          data: channel.data,
-          state: {
-            members: channel.state.members,
-            messages: channel.state.messages
-          }
-        })
-      }
-    });
+    try {
+      // Start a chat with the selected user
+      const channel = client.channel('messaging', {
+        members: [me.id, user.id],
+      });
+      
+      // Watch the channel to ensure it's properly initialized
+      await channel.watch();
+      
+      // Navigate to the channel using push instead of replace
+      // This allows proper back navigation
+      router.push(`/(home)/channel/${channel.cid}`);
+    } catch (error) {
+      console.error('Error creating channel:', error);
+      // You might want to show an error message to the user here
+    }
   };
 
   return (
